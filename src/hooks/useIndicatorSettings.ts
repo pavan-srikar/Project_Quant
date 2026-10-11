@@ -1,0 +1,185 @@
+import { useState, useEffect, useCallback } from "react";
+import type { IndicatorType } from "../lib/indicators.ts";
+
+export interface IndicatorSettings {
+  period?: number;
+  fast?: number;
+  slow?: number;
+  signal?: number;
+  stdDev?: number;
+  kPeriod?: number;
+  dPeriod?: number;
+  overbought?: number;
+  oversold?: number;
+  color: string;
+  signalColor?: string;
+  histUpColor?: string;
+  histDownColor?: string;
+  upperColor?: string;
+  lowerColor?: string;
+  lineWidth?: number;
+  visible?: boolean;
+}
+
+export const DEFAULT_INDICATOR_SETTINGS: Record<IndicatorType, IndicatorSettings> = {
+  SMA: {
+    period: 20,
+    color: "#f0b90b",
+    lineWidth: 1.5,
+    visible: true,
+  },
+  EMA: {
+    period: 20,
+    color: "#e377c2",
+    lineWidth: 1.5,
+    visible: true,
+  },
+  RSI: {
+    period: 14,
+    overbought: 70,
+    oversold: 30,
+    color: "#7e57c2",
+    lineWidth: 2,
+    visible: true,
+  },
+  MACD: {
+    fast: 12,
+    slow: 26,
+    signal: 9,
+    color: "#2962ff",
+    signalColor: "#ff6d00",
+    histUpColor: "#26a69a",
+    histDownColor: "#ef5350",
+    lineWidth: 1.5,
+    visible: true,
+  },
+  BOLL: {
+    period: 20,
+    stdDev: 2,
+    color: "#2962ff",
+    upperColor: "rgba(41, 98, 255, 0.5)",
+    lowerColor: "rgba(41, 98, 255, 0.5)",
+    lineWidth: 1,
+    visible: true,
+  },
+  ATR: {
+    period: 14,
+    color: "#ff7043",
+    lineWidth: 1.5,
+    visible: true,
+  },
+  STOCH: {
+    kPeriod: 14,
+    dPeriod: 3,
+    overbought: 80,
+    oversold: 20,
+    color: "#2962ff",
+    signalColor: "#ff6d00",
+    lineWidth: 1.5,
+    visible: true,
+  },
+  VWAP: {
+    color: "#ff9800",
+    lineWidth: 1.5,
+    visible: true,
+  },
+  CCI: {
+    period: 20,
+    color: "#26c6da",
+    lineWidth: 1.5,
+    visible: true,
+  },
+  WR: {
+    period: 14,
+    color: "#ffca28",
+    lineWidth: 1.5,
+    visible: true,
+  },
+};
+
+const STORAGE_KEY = "project_quant_indicator_settings";
+const LEGACY_STORAGE_KEY = "opencharts_indicator_settings";
+const EVENT_NAME = "project_quant_indicator_settings_updated";
+
+export function getStoredIndicatorSettings(): Record<IndicatorType, IndicatorSettings> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (!raw) return { ...DEFAULT_INDICATOR_SETTINGS };
+    const parsed = JSON.parse(raw);
+    const result = { ...DEFAULT_INDICATOR_SETTINGS };
+    for (const key of Object.keys(DEFAULT_INDICATOR_SETTINGS) as IndicatorType[]) {
+      if (parsed[key]) {
+        result[key] = { ...DEFAULT_INDICATOR_SETTINGS[key], ...parsed[key] };
+      }
+    }
+    return result;
+  } catch {
+    return { ...DEFAULT_INDICATOR_SETTINGS };
+  }
+}
+
+export function saveIndicatorSettings(
+  type: IndicatorType,
+  updates: Partial<IndicatorSettings>,
+): Record<IndicatorType, IndicatorSettings> {
+  const current = getStoredIndicatorSettings();
+  const next = {
+    ...current,
+    [type]: {
+      ...current[type],
+      ...updates,
+    },
+  };
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+  window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: { type, settings: next[type] } }));
+  return next;
+}
+
+export function resetIndicatorSettings(type: IndicatorType): Record<IndicatorType, IndicatorSettings> {
+  const current = getStoredIndicatorSettings();
+  const next = {
+    ...current,
+    [type]: { ...DEFAULT_INDICATOR_SETTINGS[type] },
+  };
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+  window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: { type, settings: next[type] } }));
+  return next;
+}
+
+export function useIndicatorSettings() {
+  const [settings, setSettings] = useState<Record<IndicatorType, IndicatorSettings>>(() =>
+    getStoredIndicatorSettings(),
+  );
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setSettings(getStoredIndicatorSettings());
+    };
+    window.addEventListener(EVENT_NAME, handleUpdate);
+    window.addEventListener("storage", handleUpdate);
+    return () => {
+      window.removeEventListener(EVENT_NAME, handleUpdate);
+      window.removeEventListener("storage", handleUpdate);
+    };
+  }, []);
+
+  const update = useCallback((type: IndicatorType, updates: Partial<IndicatorSettings>) => {
+    const updated = saveIndicatorSettings(type, updates);
+    setSettings(updated);
+  }, []);
+
+  const reset = useCallback((type: IndicatorType) => {
+    const resetSettings = resetIndicatorSettings(type);
+    setSettings(resetSettings);
+  }, []);
+
+  return { settings, updateIndicatorSettings: update, resetIndicatorSettings: reset };
+}
