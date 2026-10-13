@@ -93,21 +93,96 @@ function hitVolumeProfile(e: ResolvedEntry, p: Pt, tol: Tol): Hit | null {
   }
   if (yTop === null || yBot === null) return null;
 
-  // Check POC line hit
+  const xStart = vp?.xStart != null ? vp.xStart : xa;
+  const xEnd = vp?.xEnd != null ? vp.xEnd : xb;
+  const xMin = Math.min(xStart, xEnd);
+  const xMax = Math.max(xStart, xEnd);
+  const rangeWidth = Math.max(xMax - xMin, 40);
+  const maxBarWidth = Math.max(20, rangeWidth * 0.82);
+
+  // 1. Left boundary line
   if (
-    vp &&
-    vp.pocY !== null &&
-    Math.abs(p.y - vp.pocY) <= tol.line &&
-    p.x >= xa - tol.line &&
-    p.x <= xb + tol.line
+    Math.abs(p.x - xMin) <= tol.line &&
+    p.y >= yTop - tol.line &&
+    p.y <= yBot + tol.line
   ) {
     return bodyHit(e);
   }
 
-  // Inside volume profile bounding box
-  if (p.x >= xa - tol.line && p.x <= xb + tol.line && p.y >= yTop - tol.line && p.y <= yBot + tol.line) {
+  // 2. Right boundary line
+  if (
+    Math.abs(p.x - xMax) <= tol.line &&
+    p.y >= yTop - tol.line &&
+    p.y <= yBot + tol.line
+  ) {
     return bodyHit(e);
   }
+
+  // 3. Point of Control (POC) line
+  if (
+    vp &&
+    vp.pocY !== null &&
+    Math.abs(p.y - vp.pocY) <= tol.line &&
+    p.x >= xMin - tol.line &&
+    p.x <= xMax + tol.line
+  ) {
+    return bodyHit(e);
+  }
+
+  // 4. Value Area High (VAH) & Value Area Low (VAL) lines
+  if (
+    vp &&
+    vp.vahY !== null &&
+    Math.abs(p.y - vp.vahY) <= tol.line &&
+    p.x >= xMin - tol.line &&
+    p.x <= xMax + tol.line
+  ) {
+    return bodyHit(e);
+  }
+  if (
+    vp &&
+    vp.valY !== null &&
+    Math.abs(p.y - vp.valY) <= tol.line &&
+    p.x >= xMin - tol.line &&
+    p.x <= xMax + tol.line
+  ) {
+    return bodyHit(e);
+  }
+
+  // 5. Volume Profile Histogram Bars
+  if (
+    vp &&
+    vp.buckets.length > 0 &&
+    vp.maxVol > 0 &&
+    p.x >= xMin - tol.line &&
+    p.x <= xMin + maxBarWidth + tol.line &&
+    p.y >= yTop - tol.line &&
+    p.y <= yBot + tol.line
+  ) {
+    for (const b of vp.buckets) {
+      if (b.yTop === null || b.yBottom === null) continue;
+      const byTop = Math.min(b.yTop, b.yBottom);
+      const byBot = Math.max(b.yTop, b.yBottom);
+      if (p.y >= byTop - tol.line && p.y <= byBot + tol.line) {
+        const upW = Math.round((b.upVol / vp.maxVol) * maxBarWidth);
+        const downW = Math.round((b.downVol / vp.maxVol) * maxBarWidth);
+        const barW = upW + downW;
+        if (barW > 0 && p.x >= xMin - tol.line && p.x <= xMin + barW + tol.line) {
+          return bodyHit(e);
+        }
+      }
+    }
+  }
+
+  // 6. Outline fallback for uncalculated / empty profiles (never empty space inside)
+  if (!vp || vp.buckets.length === 0) {
+    const onTopOrBot =
+      p.x >= xMin - tol.line &&
+      p.x <= xMax + tol.line &&
+      (Math.abs(p.y - yTop) <= tol.line || Math.abs(p.y - yBot) <= tol.line);
+    if (onTopOrBot) return bodyHit(e);
+  }
+
   return null;
 }
 

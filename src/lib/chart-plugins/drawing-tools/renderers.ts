@@ -921,7 +921,8 @@ function renderVolumeProfile(scope: BitmapCoordinatesRenderingScope, e: Resolved
     const upW = Math.round((b.upVol / vp.maxVol) * maxBarWidth);
     const downW = Math.round((b.downVol / vp.maxVol) * maxBarWidth);
 
-    const alpha = b.isValueArea ? 0.85 : 0.35;
+    // Keep vibrant consistent colors across all price levels (no greyed-out parts)
+    const alpha = 0.85;
 
     // Up volume bar (starts at left boundary)
     if (upW > 0) {
