@@ -1,96 +1,73 @@
-# Trading Engine & Order Execution
+# In-Browser Paper Trading Engine (`src/services/demo/engine/`)
 
-This document details the trading engine, paper trading simulation, position management, chart-based SL/TP dragging, and historical market replay system.
-
----
-
-## 1. Paper-Trading Matching Engine (`src/services/demo/engine.ts`)
-
-Project_Quant includes an in-browser execution and matching engine that functions as an autonomous paper broker.
-
-### Account Model:
-- **Default Starting Balance**: \$100,000 USD
-- **Default Leverage**: 100:1
-- **Margin Calculation**:
-  \[
-  \text{Margin} = \frac{\text{Position Size} \times \text{Entry Price}}{\text{Leverage}}
-  \]
-- **Free Margin**: \( \text{Equity} - \text{Margin} \)
-- **Mark-to-Market Valuation**:
-  On every price tick from the live feed, all open positions are re-valued against the current bid (for Longs) or ask (for Shorts).
-
-### Order Types & Execution:
-1. **Market Orders**: Filled instantaneously at the current best market price:
-   - Longs execute at `tick.ask`.
-   - Shorts execute at `tick.bid`.
-2. **Limit Orders**: Queued in `orders[]`; triggered when market price reaches or improves upon the limit price:
-   - Buy Limit: Triggers when `tick.ask <= order.price`.
-   - Sell Limit: Triggers when `tick.bid >= order.price`.
-3. **Stop Orders**: Queued in `orders[]`; triggers a market order once the stop price is breached.
+This document details the architecture, state lifecycle, order matching rules, and margin accounting formulas implemented in Project Quant' in-memory matching engine.
 
 ---
 
-## 2. Real-Time PnL Calculation (`src/lib/livePnl.ts`)
+## 1. Modular Subsystem Layout
 
-Unrealized PnL is continuously computed:
-```ts
-// For a Long position:
-const unrealizedPnl = (currentBid - position.entryPrice) * position.quantity;
-
-// For a Short position:
-const unrealizedPnl = (position.entryPrice - currentAsk) * position.quantity;
 ```
-Account equity updates synchronously:
-\[
-\text{Equity} = \text{Balance} + \sum \text{Unrealized PnL}
-\]
-
-When a position is closed (partially or fully):
-- Realized PnL is credited/debited to `account.balance`.
-- Margin requirement is released back to `account.freeMargin`.
-- A trade fill record is appended to `fills[]`.
+src/services/demo/engine/
+├── index.ts        # Central barrel re-export
+├── state.ts        # In-memory storage for accounts, orders, positions, trades
+├── orders.ts       # Order placement, tick-matching, and cancellation logic
+├── positions.ts    # Position mark-to-market PnL, partial closes, and TP/SL triggers
+└── accounting.ts   # Margin requirements, equity calculation, and liquidation
+```
 
 ---
 
-## 3. Interactive Chart Trading & SL/TP Dragging (`useSlTpDrag.ts`)
+## 2. Order Matching Mechanics (`orders.ts`)
 
-Traders can manage trades visually on the chart canvas without opening modal dialogs:
-
-1. **Position Lines on Chart**:
-   - When a position is opened, `ChartPanel.tsx` draws horizontal price lines:
-     - **Entry Line**: Cyan/Blue dashed line displaying quantity and unrealized PnL.
-     - **Stop Loss Line**: Red dashed line.
-     - **Take Profit Line**: Green dashed line.
-2. **Drag-to-Adjust Interaction (`useSlTpDrag.ts`)**:
-   - Hovering over an SL or TP handle changes cursor to `ns-resize`.
-   - Dragging the handle vertically updates the SL/TP price in real-time.
-   - An interactive HUD pill displays the prospective loss/profit in dollars and pips while dragging.
-   - Releasing the mouse commits the change via `api.modifyPosition(positionId, { stopLoss, takeProfit })`.
-
----
-
-## 4. Proprietary Challenge Rules & Risk Monitoring (`useChallengeLevels.ts`)
-
-Project_Quant supports prop-firm style evaluation metrics:
-- **Max Daily Drawdown**: Tracks drawdown against the day's starting equity (resets at 00:00 UTC).
-- **Max Overall Drawdown**: Hard equity stop (e.g. 10% below initial balance).
-- **Profit Target**: Benchmark goal (e.g. +8% or +10%).
-- Real-time warning banners appear if account equity approaches within 1% of the maximum allowable loss.
+The paper trading engine operates without external network requests:
+1. **Market Orders**:
+   - Filled immediately against active best bid/ask from the tick feed.
+   - Longs execute at `Ask`; Shorts execute at `Bid`.
+2. **Limit Orders**:
+   - Placed in the in-memory order book (`state.orders`).
+   - Matched when incoming tick crosses the limit price:
+     - Buy Limit: `Tick.Ask <= limitPrice`.
+     - Sell Limit: `Tick.Bid >= limitPrice`.
+3. **Stop & Stop-Limit Orders**:
+   - Triggered when market price reaches `stopPrice`.
+   - On trigger, converted either to market execution or placed as working limit order.
 
 ---
 
-## 5. Market Replay Engine (`useReplayPlayback.ts`, `ReplayScrubber.tsx`)
+## 3. Position Lifecycle & Margin Accounting (`positions.ts` & `accounting.ts`)
 
-Traders can rewind market history and practice trading past market conditions bar-by-bar:
+### A. Position State
+Each open position tracks:
+- `id`: Unique identifier.
+- `symbol`: Trading pair (e.g., `"BTCUSD"`).
+- `side`: `"LONG"` or `"SHORT"`.
+- `quantity`: Position size in base currency.
+- `entryPrice`: Volume-weighted average entry price.
+- `leverage`: Selected leverage multiplier ($1\times$ to $100\times$).
+- `takeProfit` & `stopLoss`: Optional trigger prices.
+- `unrealizedPnl`: Current mark-to-market return.
 
-1. **Data Slicing (`useReplayChartData.ts`)**:
-   - Fetches historical 1m candles for a selected date.
-   - Slices candles up to `replayCursorTimestamp`.
-   - Suppresses live WebSocket updates so real-time prices cannot overwrite playback candles.
-2. **Playback Loop (`useReplayPlayback.ts`)**:
-   - Driven by `requestAnimationFrame` with variable speed multipliers (1x, 5x, 10x, 60x).
-   - Steps cursor forward, emitting `REPLAY_EVENT` with each bar.
-   - Allows placing paper trades during playback; the engine evaluates fills against historical candles!
-3. **Cache Invalidation (`replayVersion`)**:
-   - Each replay session increments `replayVersion`.
-   - `replayVersion` is embedded into React Query keys (`queryKeys.market.candles(...)`), ensuring React Query never re-uses stale live data or structural sharing.
+### B. Mark-to-Market PnL Formula
+Updated on every price tick:
+$$\text{Long PnL} = (\text{Current Bid} - \text{Entry Price}) \times \text{Quantity}$$
+$$\text{Short PnL} = (\text{Entry Price} - \text{Current Ask}) \times \text{Quantity}$$
+
+### C. Margin Accounting
+- **Initial Margin Required**:
+  $$\text{Initial Margin} = \frac{\text{Entry Price} \times \text{Quantity}}{\text{Leverage}}$$
+- **Account Equity**:
+  $$\text{Equity} = \text{Balance} + \sum \text{Unrealized PnL}$$
+- **Free Margin**:
+  $$\text{Free Margin} = \text{Equity} - \sum \text{Used Margin}$$
+
+### D. Liquidation Protection
+If account equity drops below maintenance margin requirement (default 50% of initial margin), positions are automatically liquidated at current market price to prevent negative balance.
+
+---
+
+## 4. Event Bus Integration (`src/services/demo/bus.ts`)
+
+When actions take place inside the engine, decoupled events are broadcast across the terminal:
+- `ORDER_FILLED`: Fired on immediate market fill or limit trigger. Notifies `useTradeSound` and invalidates React Query.
+- `POSITION_CLOSED`: Fired when user closes position or TP/SL triggers. Updates trade history and balance.
+- `SL_TP_HIT`: Emitted when candle high/low crosses active bracket orders.

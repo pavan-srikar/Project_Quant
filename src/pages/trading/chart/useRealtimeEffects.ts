@@ -1,0 +1,276 @@
+import type { useQueryClient } from "@tanstack/react-query";
+import type {
+  CandlestickData,
+  IPriceLine,
+  ISeriesApi,
+  Time,
+} from "lightweight-charts";
+import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
+import type { useChartPreferences } from "../../../hooks/useChartPreferences.ts";
+import type { Order, Position, Symbol } from "../../../services/schemas.ts";
+import type { DrawingLine, Timeframe } from "../constants.ts";
+import { frameLatestCandles } from "./chartFraming.ts";
+import {
+  addOrderOverlay,
+  addPositionOverlay,
+  clearPriceLines,
+} from "./chartOverlays.ts";
+import {
+  applyBidAskLines,
+  applyServerCandle,
+  applyTick,
+  reapplyLive,
+  replayBufferedLive,
+  scheduleStaleRefetch,
+} from "./realtimeFeed.ts";
+import type {
+  ChartColors,
+  LiveCandleData,
+  OhlcvLegend,
+  OverlayOpts,
+  ReplayTradeEvent,
+  RtCtx,
+  TickData,
+} from "./types.ts";
+import { useCandleCountdown } from "./useCandleCountdown.ts";
+import { legendFromSeries } from "./useChartDataPipeline.ts";
+import { useLineCrossAlerts } from "./useLineCrossAlerts.ts";
+import { useReplayMarkers } from "./useReplayMarkers.ts";
+import { useStalenessWatchdog } from "./useStalenessWatchdog.ts";
+
+export interface RealtimeEffectsParams {
+  chartRef: RefObject<any>;
+  candleSeriesRef: RefObject<ISeriesApi<"Candlestick"> | null>;
+  volumeSeriesRef: RefObject<ISeriesApi<"Histogram"> | null>;
+  chartData: CandlestickData<Time>[];
+  volumeData: any[];
+  selectedSymbol: string;
+  timeframe: Timeframe;
+  makeRtCtx: (series: ISeriesApi<"Candlestick">) => RtCtx;
+  lastLoadKeyRef: RefObject<string>;
+  lastLoadedSeriesRef: RefObject<ISeriesApi<"Candlestick"> | null>;
+  lastCandleRef: RefObject<CandlestickData<Time> | null>;
+  latestLiveCandleRef: RefObject<LiveCandleData | undefined>;
+  liveCandleTsRef: RefObject<number>;
+  lastGapRefetchAtRef: RefObject<number>;
+  initialLoadCompleteRef: RefObject<boolean>;
+  lastRenderedBarCountRef: RefObject<number>;
+  hasUserPannedOrZoomedRef: RefObject<boolean>;
+  setLegend: Dispatch<SetStateAction<OhlcvLegend | null>>;
+  liveCandle?: LiveCandleData;
+  tick?: TickData;
+  drawingsRef: RefObject<DrawingLine[]>;
+  pipDigits: number;
+  isReplaying?: boolean;
+  queryClient: ReturnType<typeof useQueryClient>;
+  chartPrefs: ReturnType<typeof useChartPreferences>;
+  priceLineRef: RefObject<IPriceLine[]>;
+  slTpLinesRef: RefObject<any>;
+  positions: Position[];
+  orders: Order[];
+  colors: ChartColors;
+  symbolInfo?: Symbol;
+  replayTradeEvents?: ReplayTradeEvent[];
+  setCountdown: Dispatch<SetStateAction<string>>;
+}
+
+export function useRealtimeEffects(params: RealtimeEffectsParams) {
+  const {
+    chartRef,
+    candleSeriesRef,
+    volumeSeriesRef,
+    chartData,
+    volumeData,
+    selectedSymbol,
+    timeframe,
+    makeRtCtx,
+    lastLoadKeyRef,
+    lastLoadedSeriesRef,
+    lastCandleRef,
+    latestLiveCandleRef,
+    liveCandleTsRef,
+    lastGapRefetchAtRef,
+    initialLoadCompleteRef,
+    lastRenderedBarCountRef,
+    hasUserPannedOrZoomedRef,
+    setLegend,
+    liveCandle,
+    tick,
+    drawingsRef,
+    pipDigits,
+    isReplaying,
+    queryClient,
+    chartPrefs,
+    priceLineRef,
+    slTpLinesRef,
+    positions,
+    orders,
+    colors,
+    symbolInfo,
+    replayTradeEvents,
+    setCountdown,
+  } = params;
+
+  // 1. Keep latest live candle in a ref (avoids stale closure in setData effect)
+  useEffect(() => {
+    latestLiveCandleRef.current = liveCandle;
+  }, [liveCandle, latestLiveCandleRef]);
+
+  // 2. Update candle data from server (historical fetch / periodic sync)
+  useEffect(() => {
+    const series = candleSeriesRef.current;
+    if (!series || chartData.length === 0) return;
+    const ctx = makeRtCtx(series);
+    const loadKey = `${selectedSymbol}:${timeframe}`;
+    const isNewChart =
+      lastLoadKeyRef.current !== loadKey ||
+      lastLoadedSeriesRef.current !== series;
+
+    series.setData(chartData);
+    volumeSeriesRef.current?.setData(volumeData);
+    lastCandleRef.current = chartData[chartData.length - 1] ?? null;
+    lastLoadKeyRef.current = loadKey;
+    lastLoadedSeriesRef.current = series;
+    setLegend(legendFromSeries(chartData, volumeData));
+
+    const buffered = latestLiveCandleRef.current;
+    const isInitialLoad = !initialLoadCompleteRef.current;
+    const barCountJump =
+      Math.abs(chartData.length - lastRenderedBarCountRef.current) > 50;
+    const shouldReframe =
+      isNewChart ||
+      isInitialLoad ||
+      (!hasUserPannedOrZoomedRef.current && barCountJump);
+
+    lastRenderedBarCountRef.current = chartData.length;
+
+    if (!shouldReframe) {
+      // Periodic refetch — preserve viewport, re-apply latest live data.
+      reapplyLive(buffered, ctx);
+      return;
+    }
+
+    initialLoadCompleteRef.current = true;
+    frameLatestCandles(chartRef.current, chartData.length);
+    liveCandleTsRef.current = 0;
+    replayBufferedLive(buffered, chartData, ctx);
+    return scheduleStaleRefetch(chartData, ctx);
+  }, [
+    chartData,
+    volumeData,
+    selectedSymbol,
+    timeframe,
+    makeRtCtx,
+    candleSeriesRef,
+    volumeSeriesRef,
+    lastLoadKeyRef,
+    lastLoadedSeriesRef,
+    lastCandleRef,
+    latestLiveCandleRef,
+    setLegend,
+    initialLoadCompleteRef,
+    lastRenderedBarCountRef,
+    hasUserPannedOrZoomedRef,
+    chartRef,
+    liveCandleTsRef,
+  ]);
+
+  // 3. Real-time candle updates: server-aggregated CandleUpdate
+  useEffect(() => {
+    const series = candleSeriesRef.current;
+    if (!series || !liveCandle || !lastCandleRef.current) return;
+    applyServerCandle(liveCandle, makeRtCtx(series));
+  }, [liveCandle, makeRtCtx, candleSeriesRef, lastCandleRef]);
+
+  // 4. Tick-based smoothing
+  useEffect(() => {
+    const series = candleSeriesRef.current;
+    if (!series || !tick) return;
+    applyTick(tick, makeRtCtx(series));
+  }, [tick, makeRtCtx, candleSeriesRef]);
+
+  // 5. Line-cross price alerts (client-side, in-session)
+  useLineCrossAlerts(tick, drawingsRef, selectedSymbol, pipDigits);
+
+  // 6. Staleness watchdog
+  useStalenessWatchdog(
+    isReplaying,
+    timeframe,
+    lastCandleRef,
+    lastGapRefetchAtRef,
+    queryClient,
+    selectedSymbol,
+  );
+
+  // 7. Live bid/ask price tracking lines
+  useEffect(() => {
+    const series = candleSeriesRef.current;
+    if (!series) return;
+    applyBidAskLines(
+      tick,
+      {
+        showBidLine: chartPrefs.showBidLine,
+        showAskLine: chartPrefs.showAskLine,
+      },
+      makeRtCtx(series),
+    );
+  }, [
+    tick,
+    chartPrefs.showBidLine,
+    chartPrefs.showAskLine,
+    makeRtCtx,
+    candleSeriesRef,
+  ]);
+
+  // 8. Position/order overlays
+  useEffect(() => {
+    const series = candleSeriesRef.current;
+    if (!series) return;
+    const lines = priceLineRef.current;
+    clearPriceLines(series, lines);
+    priceLineRef.current = [];
+    slTpLinesRef.current.clear();
+    if (!chartPrefs.overlayPositionsOnChart) return;
+
+    const opts: OverlayOpts = {
+      symbol: selectedSymbol,
+      colors,
+      contractSize: symbolInfo?.contractSize || 100000,
+    };
+    for (const pos of positions) {
+      addPositionOverlay(
+        series,
+        pos,
+        opts,
+        priceLineRef.current,
+        slTpLinesRef.current,
+      );
+    }
+    for (const ord of orders) {
+      addOrderOverlay(
+        series,
+        ord,
+        selectedSymbol,
+        colors.orderLine,
+        priceLineRef.current,
+      );
+    }
+  }, [
+    positions,
+    orders,
+    selectedSymbol,
+    chartData,
+    symbolInfo,
+    colors,
+    chartPrefs.overlayPositionsOnChart,
+    candleSeriesRef,
+    priceLineRef,
+    slTpLinesRef,
+  ]);
+
+  // 9. Replay trade event markers
+  useReplayMarkers(candleSeriesRef, replayTradeEvents, timeframe);
+
+  // 10. Candle close countdown timer
+  useCandleCountdown(timeframe, setCountdown);
+}

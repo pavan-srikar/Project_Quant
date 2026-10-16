@@ -1,0 +1,57 @@
+@layer base {
+  /* Deep dark trading theme — modern TradingView & Binance aesthetic */
+  :root {
+    --background: 224 28% 10%; /* #131722 */
+    --foreground: 210 20% 92%;
+    --card: 224 20% 15%; /* #1e222d */
+    --card-foreground: 210 20% 92%;
+    --primary: 224 100% 58%; /* #2962ff */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 224 20% 15%; /* #1e222d */
+    --secondary-foreground: 210 20% 92%;
+    --muted: 224 15% 19%; /* #2a2e39 */
+    --muted-foreground: 215 15% 65%;
+    --accent: 224 100% 58%; /* #2962ff */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 352 90% 62%; /* #f6465d */
+    --destructive-foreground: 0 0% 100%;
+    --border: 224 15% 19%; /* #2a2e39 */
+    --input: 224 28% 10%; /* #131722 */
+    --ring: 224 100% 58%; /* #2962ff */
+    --radius: 0.5rem;
+    --success: 156 87% 43%; /* #0ecb81 */
+    --warning: 38 92% 50%;
+    --buy: 156 87% 43%; /* #0ecb81 */
+    --sell: 352 90% 62%; /* #f6465d */
+    --panel-header: 224 20% 15%; /* #1e222d */
+    --glow: 224 100% 58%;
+  }
+
+  /* Light theme */
+  .light {
+    --background: 0 0% 98%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --primary: 168 80% 38%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 93%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 168 80% 38%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 168 80% 38%;
+    --radius: 0.5rem;
+    --success: 160 84% 35%;
+    --warning: 38 92% 45%;
+    --buy: 160 84% 35%;
+    --sell: 0 72% 51%;
+    --panel-header: 210 40% 96%;
+    --glow: 168 80% 38%;
+  }
+}

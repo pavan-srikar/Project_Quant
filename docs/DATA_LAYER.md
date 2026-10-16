@@ -1,117 +1,86 @@
-# Market Data Layer & Caching (`queries.ts` & `binance.ts`)
+# Market Data & Query Layer (`src/services/queries/` & `src/services/demo/binance/`)
 
-This document details Project_Quant' market data pipeline, Binance REST and WebSocket integration, offline bundled data fallbacks, and TanStack React Query caching strategies.
+This document details the market data pipeline, caching mechanisms, WebSocket bridge, and data normalization implemented in Project Quant.
 
 ---
 
-## 1. Market Data Pipeline Overview
+## 1. Directory Structure
 
 ```
-                        ┌────────────────────────┐
-                        │   Binance REST API     │
-                        │ (https://api.binance)  │
-                        └───────────┬────────────┘
-                                    │ (klines query)
-                                    ▼
-┌────────────────────────┐    ┌────────────────────────┐    ┌────────────────────────┐
-│  Bundled Offline Data  │───►│  Candle Store / Cache  │◄───│  Live Feed / Simulator │
-│ (data/*.json fallback) │    │  (candles.ts)          │    │  (feed.ts / WS)        │
-└────────────────────────┘    └───────────┬────────────┘    └────────────────────────┘
-                                          │
-                                          ▼
-                              ┌────────────────────────┐
-                              │  TanStack React Query  │
-                              │  (useCandles hook)     │
-                              └───────────┬────────────┘
-                                          │
-                                          ▼
-                              ┌────────────────────────┐
-                              │  ChartPanel (View)     │
-                              └────────────────────────┘
+src/services/
+├── queries/                    # TanStack React Query hooks (<220 lines each)
+│   ├── keys.ts                 # Deterministic query key factories
+│   ├── market.ts               # useCandles, useTicker, useOrderBook
+│   ├── trading.ts              # usePositions, useOrders, useTradeHistory
+│   ├── accounts.ts             # useAccount, useAccounts
+│   ├── journal.ts              # useJournalEntries, useCreateJournalEntry
+│   ├── analytics.ts            # Performance analytics and win-rate queries
+│   ├── features.ts             # Feature flags and terminal preferences
+│   └── botAndNotifications.ts  # Trading bot status and alert notifications
+├── demo/binance/               # Binance REST & WebSocket client
+│   ├── klines.ts               # Fetches historical OHLCV klines from Binance API
+│   ├── tickers.ts              # Fetches 24h ticker price change and volumes
+│   ├── priceStorage.ts         # In-memory and localStorage cache for klines
+│   └── symbolMapping.ts        # Maps standard pairs (BTCUSD -> BTCUSDT)
+└── stores/                     # Zustand stores
+    ├── useTradingStore.ts      # Live ticks, active candle, and replay state
+    ├── watchlistSlice.ts       # Watchlist tabs, symbol ordering, and bookmarks
+    └── useTickStore.ts         # Ultra-high-frequency symbol price quotes
 ```
 
 ---
 
-## 2. Binance REST Integration (`src/services/demo/binance.ts`)
+## 2. Market Data Ingestion Pipeline
 
-Historical candlestick data is fetched directly from Binance:
-- **Symbol Translation (`symbolToBinancePair`)**:
-  - `BTCUSD` -> `BTCUSDT`
-  - `ETHUSD` -> `ETHUSDT`
-  - `SOLUSD` -> `SOLUSDT`
-- **Timeframe Mapping**:
-  - Project_Quant: `1m`, `5m`, `15m`, `30m`, `1h`, `4h`, `1d`, `1w`
-  - Binance API intervals: `1m`, `5m`, `15m`, `30m`, `1h`, `4h`, `1d`, `1w`
-- **Deep Multi-Year History Loading (`fetchBinanceKlinesRange`)**:
-  - Binance caps single requests to 1,000 candles.
-  - For long multi-year ranges (e.g. 10,000 bars on 15m), requests are partitioned into sequential 1,000-bar chunks with monotonic timestamps.
-  - Chunks are stitched together seamlessly and cached in memory (`series.set(key, data)`).
+```
+Binance Public REST API (api.binance.com)
+            │ (on failure / offline)
+            ▼
+Bundled JSON Fallback (src/services/demo/data/*.json)
+            │
+            ▼
+klines.ts ──► Normalize timestamps & volumes ──► priceStorage.ts Cache
+                                                        │
+                                                        ▼
+                                             useCandles (React Query)
+                                                        │
+                                                        ▼
+                                             Chart Data Pipeline
+```
 
----
-
-## 3. Bundled Offline Fallbacks (`src/services/demo/data/*.json`)
-
-To allow the terminal to function fully offline or survive Binance rate limits / geographic IP blocks:
-- Project_Quant bundles JSON snapshots in `src/services/demo/data/`.
-- Loaded eagerly via Vite:
-  ```ts
-  const fallbackModules = import.meta.glob<{ default: Candle[] }>("./data/*.json", { eager: true });
-  ```
-- If the live network request fails, `candles.ts` falls back immediately to the bundled series, guaranteeing zero blank chart screens.
+### Candle Normalization
+Binance kline arrays `[time, open, high, low, close, volume, ...]` are mapped into strictly typed `Candle` objects:
+- `time`: Normalized to integer seconds (`Math.floor(rawTime / 1000)`).
+- `open`, `high`, `low`, `close`, `volume`: Converted from strings to floating-point numbers.
+- Deduplication: Consecutive bars sharing identical timestamps are merged or dropped to prevent chart crashes.
 
 ---
 
-## 4. Live Tick Feed & Aggregator (`src/services/demo/feed.ts`)
+## 3. WebSocket Integration (`src/components/market-data-bridge/`)
 
-- Simulates realistic micro-structure price action around the latest known closing price.
-- Emits ticks at ~50ms intervals.
-- Dynamically calculates Bid and Ask using realistic instrument spreads (e.g. 0.5 pips on EURUSD, \$2.50 on BTCUSD).
-- Aggregates raw ticks into the current active bar (`liveCandleUpdates`), tracking High, Low, Close, and Volume.
+`MarketDataBridge.tsx` runs headlessly to connect live WebSocket feeds with stores and queries:
+- `useMarketDataWs.ts`: Connects ticker streams and pushes updates directly into `useTradingStore.ticks`.
+- `useAccountWs.ts`: Listens for margin and balance updates.
+- `useOrderWsCache.ts` & `usePositionWsCache.ts`: Intercepts order fill and position liquidation events.
+- `coalesceInvalidation.ts`: Debounces high-frequency WebSocket updates within 100ms windows, preventing React re-render thrashing.
 
 ---
 
-## 5. TanStack React Query Layer (`src/services/queries.ts`)
+## 4. Query Key Factory Pattern (`keys.ts`)
 
-### A. Query Key Factory Pattern
-All queries follow a deterministic key factory:
+To avoid cache collision across symbols, timeframes, and replay states, all React Query keys use strongly typed factories:
 ```ts
 export const queryKeys = {
-  accounts: {
-    all: ["accounts"] as const,
-    mine: () => [...queryKeys.accounts.all, "mine"] as const,
-    detail: (id: string) => [...queryKeys.accounts.all, id] as const,
+  market: {
+    candles: (symbol: string, tf: string, limit?: number, replayVer?: number) =>
+      ["candles", symbol, tf, limit, replayVer] as const,
+    ticker: (symbol: string) => ["ticker", symbol] as const,
   },
   trading: {
-    positions: (accountId: string) => ["positions", accountId] as const,
-    orders: (accountId: string, status?: string) => ["orders", accountId, status] as const,
-  },
-  market: {
-    symbols: ["symbols"] as const,
-    candles: (symbol: string, tf: string) => ["candles", symbol, tf] as const,
+    positions: (accountId: string | null) => ["positions", accountId] as const,
+    orders: (accountId: string | null) => ["orders", accountId] as const,
   },
 };
 ```
-
-### B. Two-Phase Depth Query & Placeholder Data
-When a user switches coins, Project_Quant loads a 400-bar first-paint snapshot and expands to deep history (e.g. 4,380 or 10,000 bars) 400ms later:
-```ts
-export function useCandles(symbol: string, timeframe: string, limit?: number, replayVersion?: number) {
-  return useQuery<MarketDataCandlesPayload, Error, Candle[]>({
-    queryKey: [...queryKeys.market.candles(symbol, timeframe), limit ?? "auto", replayVersion ?? 0],
-    queryFn: () => api.getCandlesWithMeta(symbol, timeframe, limit),
-    select: (data) => data.candles,
-    staleTime: 30_000,
-    placeholderData: (prev, prevQuery) => {
-      // Keep previous data visible while the depth query is in-flight for the SAME symbol/tf!
-      const prevKey = prevQuery?.queryKey;
-      if (prevKey && prevKey[1] === symbol && prevKey[2] === timeframe) {
-        return prev;
-      }
-      return undefined; // Blank out if symbol changed!
-    },
-  });
-}
-```
-
-### C. Automatic Cache Upgrade in `TradingPage.tsx`
-If deep history is already cached in memory for a coin, `TradingPage.tsx` checks `queryClient.getQueryData(...)` and loads `deepCandleLimit` immediately, skipping the 400-bar first-paint downgrade!
+- `placeholderData: keepPreviousData`: Preserves existing chart candles when expanding history from 400 to 10,000 bars, eliminating flash-of-empty-content.
+- `staleTime: 30_000`: Historical candle data is cached for 30 seconds before triggering background refetch.

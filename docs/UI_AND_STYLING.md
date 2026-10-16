@@ -1,79 +1,58 @@
-# UI, Styling & Panel Layouts (`WatchlistPanel.tsx` & `ChartToolbar.tsx`)
+# UI Layout, Styling & Terminal Panels
 
-This document details Project_Quant' user interface architecture, Tailwind CSS styling conventions, resizable panel mechanics, and watchlist design.
-
----
-
-## 1. Theme & Color Palette
-
-Project_Quant uses a TradingView-inspired dark/light theme configured via Tailwind CSS:
-
-| Element | Dark Mode (Default) | Light Mode |
-|---|---|---|
-| **Canvas Background** | `#131722` | `#ffffff` |
-| **Panel Background** | `#1e222d` | `#f8f9fd` |
-| **Borders / Separators** | `#2a2e39` | `#e0e3eb` |
-| **Bullish / Gain / Bid** | `#0ecb81` (`#089981`) | `#089981` |
-| **Bearish / Loss / Ask** | `#f6465d` (`#f23645`) | `#f23645` |
-| **Primary Accent / Selection**| `#2962ff` | `#2962ff` |
-| **Font Family (Numbers)**| `font-mono` (monospace) | `font-mono` (monospace) |
+This document covers the UI hierarchy, layout coordinator, responsive adaptations, and CSS architecture of Project Quant.
 
 ---
 
-## 2. Watchlist Panel Architecture (`WatchlistPanel.tsx`)
+## 1. Modular Viewport Layout (`src/pages/trading-page/`)
 
-The Watchlist provides instant quotes, multi-list organization, and one-click coin switching:
+The terminal layout is broken down into clean, decoupled subcomponents:
 
-### A. Row Layout Specification:
-Each row follows a strict horizontal column sequence:
 ```
-[ Drag Handle ] [ Bookmark ] [ Symbol Icon ] [ Symbol Name & Subtitle ]  [ Bid / Ask Prices ]  [ 24h % Change ]
+src/pages/trading-page/
+├── TradingPage.tsx             # Coordinator assembling header, center, right, dialogs
+├── TradingPageHeader.tsx       # Top brand header, symbol search, layout toggles
+├── TradingMainArea.tsx         # Center container holding tool rail, chart, bottom indicators
+├── TradingCenterView.tsx       # Main chart panel and bottom oscillator panel
+├── TradingRightPanel.tsx       # Sidebar switching between Watchlist, OrderPanel, ObjectTree
+├── TradingDialogContainer.tsx  # Mounts confirm, modify, settings, and journal modals
+├── MobileTradingSection.tsx    # Responsive mobile drawer for phones and tablets
+├── useTradingLayoutResize.ts   # Drag splitter height and sidebar width resizing
+└── useTradingShortcuts.ts      # Global keyboard shortcuts (Alt+key, Delete, Esc)
 ```
-- **Bid / Ask**: Displayed as stacked font-mono prices (`Bid` in green `#0ecb81`, `Ask` in red `#f6465d`).
-- **% Change**: Displayed in plain green/red font-mono text without solid background badges, keeping the UI clean and consistent with the quote numbers.
-- **Panel Width**: Defaulted to `320px` to prevent symbol names (`BTCUSD`, `ETHUSD`, `SOLUSD`) from truncating.
-
-### B. Multi-Watchlist Tabs:
-- Users can create multiple custom watchlists (e.g. "Crypto Majors", "DeFi", "Forex").
-- Switchable via top pill tabs with horizontal scroll.
-- Drag-and-drop reordering of symbols within any list.
 
 ---
 
-## 3. Resizable Multi-Pane Layout
+## 2. Terminal Panels (`src/pages/trading/`)
 
-The terminal layout is partitioned into flexible split panes using custom mouse/touch drag handles:
+- **Chart Toolbar (`chart-toolbar/`)**: Top horizontal bar for timeframes, chart type dropdown, indicator toggles, and price badge.
+- **Drawing Tool Rail (`drawing-rail/`)**: Left vertical rail with tool groups, favorites reordering, and magnet toggle.
+- **Watchlist Panel (`watchlist/`)**: Right sidebar with customizable tab bars, color flag bookmarks, search, and real-time tick flashes.
+- **Order Panel (`order-panel/`)**: Order entry sidebar with side selector (Buy/Sell), order types, quantity percentages, and risk preview.
+- **Bottom Panel (`bottom-panel/`)**: Bottom tray coordinating Positions table, Orders table, Trade History, Trade Journal, and Indicators tabs.
+  - **Indicators Sub-Panel (`bottom-indicators/`)**: Renders active oscillator indicators (RSI, MACD, etc.) in vertically stacked panes separated by a brand-blue divider (`divide-[#2962ff]`).
+  - **Single Time Axis**: The date/time scale is only shown on the bottom-most active sub-chart pane, eliminating duplicate horizontal axes.
+  - **Smart Collapse**: Minimized by default if no below indicators exist; automatically expands when below indicators are active or added; displays clean instructional text when opened without active indicators.
 
-```
-┌─────────────────────────────────────────────────────────────┬─────────────────┐
-│ ChartToolbar (Header: Symbol, Timeframe, Indicators, Quick) │                 │
-├───────────────────────────────┬─────────────────────────────┤                 │
-│ DrawingToolRail               │ ChartPanel                  │ WatchlistPanel  │
-│ (Left Icons)                  │ (Main Canvas)               │       or        │
-│                               ├─────────────────────────────┤   OrderPanel    │
-│                               │ BottomIndicatorsPanel       │                 │
-│                               │ (Sub-chart Oscillators)     │                 │
-├───────────────────────────────┴─────────────────────────────┤                 │
-│ ══ Resize Handle (h-1.5 cursor-row-resize) ═════════════════┤                 │
-├─────────────────────────────────────────────────────────────┼─────────────────┤
-│ BottomPanel (Tabs: Positions, Orders, Journal, Replay)      │ (Resize Handle) │
-└─────────────────────────────────────────────────────────────┴─────────────────┘
-```
-
-### Drag Handle Implementation:
-- **Vertical Resize Handle** (`isResizingRight`): Adjusts right sidebar width (`rightPanelWidth`), clamped between 260px and 500px.
-- **Horizontal Resize Handle** (`isResizingBottom`): Adjusts bottom drawer height (`bottomPanelHeight`), clamped between 120px and 600px.
-- Implemented with passive pointer capture (`onMouseDown`, `onTouchStart`) and window-level `mousemove`/`mouseup` listeners to prevent cursor loss during fast drags.
 
 ---
 
-## 4. Video-Game Style HUD Tooltips & Overlays
+## 3. CSS Architecture (`src/styles/`)
 
-1. **Indicator Rail Badges**:
-   - Hovering over an indicator pill displays a video-game style HUD box positioned directly adjacent to the circle.
-   - Shows indicator description, current parameters, and double-click settings shortcut.
-2. **Chart Legend Header (`ChartLegendHeader`)**:
-   - Anchored at `top-2 left-3` with `pointer-events-none`.
-   - Displays Symbol, Timeframe, OHLCV values, Bid/Ask/Spread, and Candle countdown timer.
-   - Hovering past candles dynamically updates OHLCV values in real-time.
-   - Can be toggled on/off in Chart Settings (`showOhlcLegend`).
+Styling is split into three focused stylesheets strictly under 300 lines:
+- `global.css`: Base Tailwind imports (`@tailwind base; components; utilities;`), typography, and default focus rings.
+- `theme.css`: CSS custom variables defining the complete color token system:
+  - Dark Theme (`--bg-primary: #131722`, `--bg-secondary: #1e222d`, `--color-border: #2a2e39`).
+  - Light Theme (`--bg-primary: #ffffff`, `--bg-secondary: #f0f3fa`, `--color-border: #e0e3eb`).
+  - Financial Colors: Green bullish `#089981`, Red bearish `#f23645`.
+- `components.css`: Custom component classes for scrollbar tracks, slider thumbs, backdrop blurs, and animation keyframes.
+
+---
+
+## 4. Responsive & Mobile Adaptations (`src/components/mobile-trading/`)
+
+For screen widths under `768px`:
+- Desktop sidebars (Order Panel, Watchlist) collapse automatically.
+- `MobileTradingPanel.tsx` mounts as an interactive bottom drawer.
+- Touch interactions in `src/lib/chart-plugins/drawing-tools/touch.ts` scale hit targets by $2\times$ (`TOUCH_HIT_SCALE`) for touch accuracy.
+- Long-press ($500\text{ms}$) opens drawing settings without requiring double-click.

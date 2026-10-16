@@ -46,3 +46,40 @@ export function pnlClass(value: number): string {
   if (value < 0) return "text-destructive";
   return "text-muted-foreground";
 }
+
+export function getBaseAsset(symbol: string): string {
+  return symbol.replace(/USD[T]?$/, "");
+}
+
+export function getErrorMessage(error: unknown): string {
+  if (!error) return "Request failed";
+  if (typeof error === "string") return error;
+  if (typeof error === "object") {
+    const errObj = error as {
+      error?: { message?: string; code?: string };
+      message?: string;
+    };
+    if (errObj.error?.message && typeof errObj.error.message === "string") {
+      return errObj.error.message;
+    }
+    if (errObj.message && typeof errObj.message === "string") {
+      return errObj.message;
+    }
+  }
+  return "Request failed";
+}
+
+export function getPriceDecimals(price: number, tickSize?: number | null): number {
+  if (tickSize != null && tickSize < 0.0001) return 8;
+  if (price < 0.1) return 6;
+  if (price < 10) return 4;
+  return 2;
+}
+
+export function hexToRgba(hex: string, alpha: number): string {
+  const clean = hex.replace("#", "");
+  const r = parseInt(clean.substring(0, 2), 16) || 0;
+  const g = parseInt(clean.substring(2, 4), 16) || 0;
+  const b = parseInt(clean.substring(4, 6), 16) || 0;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}

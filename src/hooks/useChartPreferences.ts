@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { IndicatorType } from "../lib/indicators.ts";
 import type { MagnetMode } from "../pages/trading/constants.ts";
 import { useAuthStore } from "../services/store.tsx";
 import {
@@ -18,6 +19,8 @@ export interface ChartPreferences {
   stayInDrawingMode: boolean;
   /** Plugin IDs that are currently active (persisted across page loads). */
   activePlugins: string[];
+  /** Indicator types currently active (persisted across page loads). */
+  activeIndicators: IndicatorType[];
   // ── Appearance (Chart Settings dialog) ──
   /** Hex override for up candles; empty string = theme default. */
   candleUpColor: string;
@@ -67,6 +70,7 @@ const DEFAULT_CHART_PREFS: ChartPreferences = {
   magnetMode: "none",
   stayInDrawingMode: false,
   activePlugins: [],
+  activeIndicators: [],
   candleUpColor: "",
   candleDownColor: "",
   colorBackground: "",
@@ -215,6 +219,11 @@ export function getChartPreferencesFromStorage(): ChartPreferences {
   result.magnetMode =
     toMagnetMode(prefs.magnetMode) ?? (toBool(prefs.drawingMagnet, false) ? "weak" : "none");
   result.activePlugins = toStringArray(prefs.activePlugins, DEFAULT_CHART_PREFS.activePlugins);
+  const rawIndicators = prefs.activeIndicators ?? (typeof window !== "undefined" ? localStorage.getItem("project_quant_active_indicators") : null);
+  result.activeIndicators = toStringArray(
+    rawIndicators ?? undefined,
+    DEFAULT_CHART_PREFS.activeIndicators,
+  ) as IndicatorType[];
   return result;
 }
 
@@ -225,6 +234,17 @@ export function updateChartPreferences(patch: Partial<ChartPreferences>): Trader
     // Strings store raw; booleans/arrays serialise to "true"/"false"/JSON —
     // the exact formats toBool/toStringArray parse back.
     next[key] = typeof value === "string" ? value : JSON.stringify(value);
+  }
+
+  if (patch.activeIndicators !== undefined && typeof window !== "undefined") {
+    try {
+      localStorage.setItem(
+        "project_quant_active_indicators",
+        JSON.stringify(patch.activeIndicators),
+      );
+    } catch {
+      // ignore
+    }
   }
 
   const userId = useAuthStore.getState().user?.id;

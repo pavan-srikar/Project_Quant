@@ -1,0 +1,62 @@
+import type {
+  CandlestickData,
+  IChartApi,
+  ISeriesApi,
+  Time,
+} from "lightweight-charts";
+import type { IndicatorType } from "../../../lib/indicators.ts";
+
+export interface BottomIndicatorsPanelProps {
+  candles: (CandlestickData<Time> | any)[];
+  activeIndicators: IndicatorType[];
+  onToggleIndicator: (type: IndicatorType) => void;
+  isDark?: boolean;
+  timeframe?: string;
+  mainChart?: IChartApi | null;
+}
+
+export interface ContextMenuState {
+  x: number;
+  y: number;
+  type: IndicatorType;
+}
+
+export interface SeriesState {
+  chart: IChartApi;
+  type: IndicatorType;
+  settingsKey: string;
+  mainSeries: ISeriesApi<any>;
+  allSeries: ISeriesApi<any>[];
+  extraSeries?: {
+    signal?: ISeriesApi<"Line">;
+    hist?: ISeriesApi<"Histogram">;
+    d?: ISeriesApi<"Line">;
+  };
+}
+
+export type IndicatorCalculatedData =
+  | { type: "RSI"; period: number; data: { time: number; value: number }[] }
+  | {
+      type: "MACD";
+      fast: number;
+      slow: number;
+      signal: number;
+      data: {
+        macd: { time: number; value: number }[];
+        signal: { time: number; value: number }[];
+        histogram: { time: number; value: number }[];
+      };
+    }
+  | { type: "ATR"; period: number; data: { time: number; value: number }[] }
+  | {
+      type: "STOCH";
+      kPeriod: number;
+      dPeriod: number;
+      data: {
+        k: { time: number; value: number }[];
+        d: { time: number; value: number }[];
+      };
+    }
+  | { type: "CCI"; period: number; data: { time: number; value: number }[] }
+  | { type: "WR"; period: number; data: { time: number; value: number }[] }
+  | null;
