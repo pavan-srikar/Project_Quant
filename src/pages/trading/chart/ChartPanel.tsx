@@ -66,7 +66,7 @@ export function ChartPanel({
   isReplaying = false,
   onChartReady,
   onAllCandlesChange,
-  hideTimeScale,
+  hideTimeScale = false,
 }: ChartPanelProps) {
   const queryClient = useQueryClient();
   const refs = useChartStateRefs(selectedSymbol, timeframe);
@@ -113,6 +113,7 @@ export function ChartPanel({
     onUpdateDrawing,
     selectedDrawing: selectionState.selectedDrawing,
     drawingManagerRef: refs.drawingManagerRef,
+    chartPrefs,
   });
 
   const { allCandlesRef, chartData, volumeData } = useCandlesMerge({
@@ -121,6 +122,7 @@ export function ChartPanel({
     drawingManagerRef: refs.drawingManagerRef,
     onAllCandlesChange,
     colors,
+    timeframe,
   });
 
   const { chartEpoch } = useChartLifecycle({

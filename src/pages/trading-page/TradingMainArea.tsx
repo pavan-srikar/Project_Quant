@@ -1,6 +1,5 @@
 import type { IChartApi } from "lightweight-charts";
-import { useMemo, type MouseEvent as ReactMouseEvent, type TouchEvent as ReactTouchEvent } from "react";
-import { INDICATOR_REGISTRY } from "../../lib/indicators.ts";
+import { type MouseEvent as ReactMouseEvent, type TouchEvent as ReactTouchEvent } from "react";
 import type {
   CreateJournalEntryInput,
   UpdateJournalEntryInput,
@@ -15,6 +14,7 @@ import {
   REPLAY_ENABLED,
   type Timeframe,
 } from "../trading/constants.ts";
+import { INDICATOR_REGISTRY } from "../../lib/indicators.ts";
 import { ReplayScrubber } from "../trading/ReplayScrubber.tsx";
 
 export interface TradingMainAreaProps {
@@ -135,13 +135,12 @@ export function TradingMainArea({
   onUpdateJournal,
   onDeleteJournal,
 }: TradingMainAreaProps) {
-  const hasActiveBelowIndicators = useMemo(() => {
-    return activeIndicators.some((t) => {
-      const config = INDICATOR_REGISTRY.find((r) => r.type === t);
-      return config && config.pane === "below";
-    });
-  }, [activeIndicators]);
-
+  const hasActiveBelowIndicators = activeIndicators.some((t) => {
+    const cfg = INDICATOR_REGISTRY.find(
+      (r) => r.type === t || r.type.toLowerCase() === String(t).toLowerCase(),
+    );
+    return cfg && cfg.pane === "below";
+  });
   const isBottomIndicatorActive =
     !isBottomCollapsed && bottomTab === "indicators" && hasActiveBelowIndicators;
 
@@ -150,6 +149,7 @@ export function TradingMainArea({
       {/* Chart Area */}
       <div className="flex-1 min-h-[200px] relative">
         <ChartPanel
+          hideTimeScale={isBottomIndicatorActive}
           candles={replayCandles ?? candles}
           selectedSymbol={selectedSymbol}
           timeframe={replayCandles ? "1m" : timeframe}
@@ -185,7 +185,6 @@ export function TradingMainArea({
           onClearIndicators={onClearIndicators}
           onChartReady={onChartReady}
           onAllCandlesChange={onAllCandlesChange}
-          hideTimeScale={isBottomIndicatorActive}
         />
       </div>
 

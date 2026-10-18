@@ -7,7 +7,17 @@ import type { LoadMoreState } from "./types.ts";
 export const LOAD_MORE_THRESHOLD = 20; // trigger when fewer than N bars remain on the left
 export const LOAD_MORE_WINDOW = 500; // how many interval-widths to fetch per extension
 
-export function getSeriesOldestMs(series: ISeriesApi<"Candlestick">): number {
+export function getSeriesOldestMs(
+  series: ISeriesApi<"Candlestick">,
+  getCandles?: () => readonly any[],
+): number {
+  if (getCandles) {
+    const list = getCandles();
+    if (list.length > 0 && list[0]) {
+      const t = Number(list[0].time ?? list[0].timestamp);
+      if (t > 0) return t < 1_000_000_000_000 ? t * 1000 : t;
+    }
+  }
   const data = series.data();
   return data.length === 0 ? 0 : (data[0]!.time as number) * 1_000;
 }
@@ -16,7 +26,12 @@ export function isLoadMoreEligible(
   state: LoadMoreState,
   series: ISeriesApi<"Candlestick">,
   range: LogicalRange,
+  getCandles?: () => readonly any[],
+  hasUserPannedOrZoomedRef?: { current: boolean },
+  isUserInteractingRef?: { current: boolean },
 ): boolean {
+  if (hasUserPannedOrZoomedRef && !hasUserPannedOrZoomedRef.current) return false;
+  if (isUserInteractingRef && !isUserInteractingRef.current) return false;
   if (state.loading || state.noMoreData) return false;
   const barsInfo = series.barsInLogicalRange(range);
   if ((barsInfo?.barsBefore ?? Number.POSITIVE_INFINITY) > LOAD_MORE_THRESHOLD) {
@@ -25,7 +40,7 @@ export function isLoadMoreEligible(
   // A shifted window from a previous empty-range response is always eligible —
   // we need to try the window before the gap (e.g. before a Forex weekend).
   if (state.fetchFromMs > 0) return true;
-  const oldestMs = getSeriesOldestMs(series);
+  const oldestMs = getSeriesOldestMs(series, getCandles);
   if (oldestMs === 0) return false;
   return state.lastFetchedBeforeMs === 0 || oldestMs < state.lastFetchedBeforeMs;
 }
@@ -80,22 +95,32 @@ export function makeHistoryLoader(
   seriesRef: { current: ISeriesApi<"Candlestick"> | null },
   stateRef: { current: LoadMoreState },
   onLoaded: (bars: Candle[]) => void,
+  getCandles?: () => readonly any[],
+  hasUserPannedOrZoomedRef?: { current: boolean },
+  isChangingTfRef?: { current: boolean },
+  isUserInteractingRef?: { current: boolean },
+  isApplyingHistoryRef?: { current: boolean },
 ): (range: LogicalRange | null) => void {
+  let lastFetchTs = 0;
   return (range) => {
+    if (isChangingTfRef?.current || isApplyingHistoryRef?.current) return;
     const series = seriesRef.current;
     if (!range || !series) return;
+    const now = Date.now();
+    if (now - lastFetchTs < 500) return;
     const state = stateRef.current;
-    if (!isLoadMoreEligible(state, series, range)) return;
-    // Use the shifted boundary from a prior empty-range response when present,
-    // otherwise fall back to the series' current oldest bar.
+    if (!isLoadMoreEligible(state, series, range, getCandles, hasUserPannedOrZoomedRef, isUserInteractingRef)) return;
     const toMs =
-      state.fetchFromMs > 0 ? state.fetchFromMs : getSeriesOldestMs(series);
+      state.fetchFromMs > 0 ? state.fetchFromMs : getSeriesOldestMs(series, getCandles);
     if (toMs === 0) return;
+    const reqTf = timeframeRef.current;
+    lastFetchTs = now;
     state.loading = true;
     state.lastFetchedBeforeMs = toMs;
     state.fetchFromMs = 0;
-    // Read the timeframe from a ref: the chart (and this subscription) persists
-    // across TF changes, so the loader must always fetch the *current* TF.
-    fetchOlderRange(symbol, timeframeRef.current, toMs, state, onLoaded);
+    fetchOlderRange(symbol, reqTf, toMs, state, (bars) => {
+      if (timeframeRef.current !== reqTf || isChangingTfRef?.current) return;
+      onLoaded(bars);
+    });
   };
 }

@@ -55,7 +55,7 @@ export function buildChartOptions(
     rightPriceScale: {
       borderColor: colors.grid,
       scaleMargins: { top: 0.06, bottom: 0.18 },
-      autoScale: true,
+      autoScale: chartPrefs.autoScale ?? false,
       alignLabels: true,
       borderVisible: true,
       entireTextOnly: false,
@@ -63,6 +63,7 @@ export function buildChartOptions(
       minimumWidth: 80,
     },
     timeScale: {
+      visible: true,
       borderColor: colors.grid,
       timeVisible: true,
       secondsVisible: timeframe === "1m",

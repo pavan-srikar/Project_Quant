@@ -51,6 +51,8 @@ export interface TradingState extends WatchlistSlice {
   replayCursorTimestamp: number | null;
   /** Session date (YYYY-MM-DD) of the active replay, set when replay starts. */
   replaySessionDate: string | null;
+  /** Viewport anchor to preserve exact historical position across timeframe switches */
+  chartViewportAnchor: ChartViewportAnchor | null;
 
   setActiveAccount: (id: string) => void;
   loadAccounts: () => Promise<void>;
@@ -65,11 +67,19 @@ export interface TradingState extends WatchlistSlice {
   setPositions: (positions: Position[]) => void;
   setOrders: (orders: Order[]) => void;
   setReplaySessionDate: (date: string | null) => void;
+  setChartViewportAnchor: (anchor: ChartViewportAnchor | null) => void;
   /** Bump replay version and update replay state — call on ReplayStateChanged WS events */
   onReplayStateChanged: (
     action: string,
     opts?: { speed?: number; cursorTimestamp?: number },
   ) => void;
+}
+
+export interface ChartViewportAnchor {
+  symbol: string;
+  fromTime: number;
+  toTime: number;
+  centerTime: number;
 }
 
 export const useTradingStore = create<TradingState>((set, get) => ({
@@ -90,6 +100,9 @@ export const useTradingStore = create<TradingState>((set, get) => ({
   replaySpeed: 1,
   replayCursorTimestamp: null,
   replaySessionDate: null,
+  chartViewportAnchor: null,
+
+  setChartViewportAnchor: (anchor) => set({ chartViewportAnchor: anchor }),
 
   setActiveAccount: (id) => {
     localStorage.setItem("active_account", id);

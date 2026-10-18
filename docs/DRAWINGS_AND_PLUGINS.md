@@ -68,8 +68,9 @@ export interface ResolveCtx {
   - `timeToX(ctx, time)`: Projects timestamp to X pixel coordinate. Falls back to bar-interval logical interpolation when anchors fall between bars or in future whitespace.
   - `series.priceToCoordinate(price)`: Projects price to Y pixel coordinate.
 - **Inverse Projection (Pixels -> Data)**:
-  - `xToTime(ctx, x)`: Maps cursor X to nearest time, extrapolating future bars if cursor is past the latest bar.
+  - `xToTime(ctx, x)`: Maps cursor X to nearest time, snapping to bars via logical index fallback when direct mapping returns null, and extrapolating future/past bars if cursor is outside data.
   - `series.coordinateToPrice(y)`: Maps cursor Y to price float.
+  - `pointer-manager.posFromClient`: Computes chart pane relative coordinates, falling back to canvas element dimensions when `timeScale.width()` collapses to 0 (e.g. during bottom indicator pane activation).
 
 ---
 

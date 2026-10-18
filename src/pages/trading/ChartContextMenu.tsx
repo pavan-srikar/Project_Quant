@@ -2,6 +2,7 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   Bell,
+  Check,
   ClipboardCopy,
   ListTree,
   RotateCcw,
@@ -12,10 +13,6 @@ import {
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "../../lib/utils.ts";
 import type { IndicatorType } from "../../lib/indicators.ts";
-
-// ── Chart context menu (TradingView-style right-click menu) ──────────────────
-// Rendered by ChartPanel at the cursor position when the user right-clicks
-// empty chart space (right-clicks on a drawing open the drawing menu instead).
 
 export interface ChartContextMenuProps {
   x: number;
@@ -31,6 +28,8 @@ export interface ChartContextMenuProps {
   onSelectIndicatorSettings?: (type: IndicatorType) => void;
   onClose: () => void;
   onResetView: () => void;
+  autoScale?: boolean;
+  onToggleAutoScale?: () => void;
   onCopyPrice: (price: number) => void;
   onAddAlert?: (price: number) => void;
   onQuickOrder?: (side: "BUY" | "SELL", type: "LIMIT" | "STOP", price: number) => void;
@@ -144,6 +143,8 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
     onSelectIndicatorSettings,
     onClose,
     onResetView,
+    autoScale,
+    onToggleAutoScale,
     onCopyPrice,
     onOpenObjectTree,
     onRemoveAllDrawings,
@@ -197,6 +198,16 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
             onClose();
           }}
         />
+        {onToggleAutoScale && (
+          <MenuItem
+            icon={autoScale ? <Check className="h-3.5 w-3.5 text-[#2962ff]" /> : <span className="h-3.5 w-3.5" />}
+            label="Auto (fits data to screen)"
+            onClick={() => {
+              onToggleAutoScale();
+              onClose();
+            }}
+          />
+        )}
         {price != null && (
           <>
             <Separator />

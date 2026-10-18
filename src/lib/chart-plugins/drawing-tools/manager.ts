@@ -225,6 +225,7 @@ export class DrawingToolsManager {
   };
 
   private resolveAll = (): ResolvedEntry[] => {
+    if (this.drawings.length === 0) return [];
     return this.drawings.map((d) => resolveEntry(d, this.ctx(), "normal"));
   };
 

@@ -48,11 +48,40 @@ export function useChartStateRefs(selectedSymbol: string, timeframe: Timeframe) 
   const legendVolRef = useRef<number>(0);
   const legendRestoredRef = useRef(true);
 
+  const isScrolledBackRef = useRef(false);
+  const pendingHistoricalTargetRef = useRef<{
+    centerTime: number;
+    barCount: number;
+    targetSymbol: string;
+  } | null>(null);
+  const lastVisibleTimeRangeRef = useRef<{
+    from: number;
+    to: number;
+    centerTime?: number;
+    barCount?: number;
+  } | null>(null);
+  const prevSymbolRef = useRef(selectedSymbol);
+  const prevTfRef = useRef(timeframe);
+  const needsTfReframeRef = useRef(false);
+  const isChangingTfRef = useRef(false);
+
   // Reset historical extension on symbol/tf change
   useEffect(() => {
+    if (prevSymbolRef.current !== selectedSymbol) {
+      prevSymbolRef.current = selectedSymbol;
+      hasUserPannedOrZoomedRef.current = false;
+      isScrolledBackRef.current = false;
+      lastVisibleTimeRangeRef.current = null;
+      pendingHistoricalTargetRef.current = null;
+      initialLoadCompleteRef.current = false;
+    }
+    if (prevTfRef.current !== timeframe) {
+      prevTfRef.current = timeframe;
+      needsTfReframeRef.current = true;
+      hasUserPannedOrZoomedRef.current = false;
+      isChangingTfRef.current = true;
+    }
     setHistoricalExtra([]);
-    initialLoadCompleteRef.current = false;
-    hasUserPannedOrZoomedRef.current = false;
     lastRenderedBarCountRef.current = 0;
     loadMoreRef.current = {
       loading: false,
@@ -62,7 +91,6 @@ export function useChartStateRefs(selectedSymbol: string, timeframe: Timeframe) 
       emptyFetchCount: 0,
     };
     lastGapRefetchAtRef.current = 0;
-    lastLoadKeyRef.current = "";
     lastCandleRef.current = null;
     liveCandleTsRef.current = 0;
   }, [selectedSymbol, timeframe]);
@@ -94,5 +122,10 @@ export function useChartStateRefs(selectedSymbol: string, timeframe: Timeframe) 
     liveCandleTsRef,
     legendVolRef,
     legendRestoredRef,
+    isScrolledBackRef,
+    pendingHistoricalTargetRef,
+    needsTfReframeRef,
+    lastVisibleTimeRangeRef,
+    isChangingTfRef,
   };
 }

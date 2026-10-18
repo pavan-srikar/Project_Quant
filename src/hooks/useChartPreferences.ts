@@ -56,6 +56,8 @@ export interface ChartPreferences {
   challengeDailyLossLine: boolean;
   challengeMaxDrawdownLine: boolean;
   challengeProfitTargetLine: boolean;
+  /** Auto scale price axis to fit visible data. Default is false (manual). */
+  autoScale: boolean;
 }
 
 type TraderPrefs = Record<string, string>;
@@ -97,6 +99,7 @@ const DEFAULT_CHART_PREFS: ChartPreferences = {
   challengeDailyLossLine: false,
   challengeMaxDrawdownLine: false,
   challengeProfitTargetLine: false,
+  autoScale: false,
 };
 
 /** Boolean preference keys read straight through `toBool` with their default. */
@@ -118,6 +121,7 @@ const BOOL_PREF_KEYS = [
   "challengeMaxDrawdownLine",
   "challengeProfitTargetLine",
   "chartTemplateAutosave",
+  "autoScale",
 ] as const;
 
 /** String preference keys stored raw (empty string allowed). */

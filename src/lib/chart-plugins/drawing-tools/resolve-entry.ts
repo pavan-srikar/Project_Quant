@@ -20,7 +20,9 @@ export function resolveEntry(d: DrawingLine, ctx: ResolveCtx, state: EntryState)
     entry.fibLevels = resolveFibLevels(d, ctx.series);
   }
   if (d.type === "trendline") {
-    entry.seg = trendlineSegment(entry, ctx.chart.timeScale().width());
+    const tsWidth = ctx.chart.timeScale().width();
+    const paneWidth = tsWidth > 0 ? tsWidth : 2000;
+    entry.seg = trendlineSegment(entry, paneWidth);
     if (state === "selected" || state === "preview") entry.stats = trendlineStats(d, ctx);
   }
   if (d.type === "position") {

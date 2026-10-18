@@ -31,9 +31,22 @@ export class PointerManager {
     const x = clientX - rect.left;
     const y = clientY - rect.top;
     const timeScale = chart.timeScale();
-    const paneWidth = timeScale.width();
-    const paneHeight = rect.height - timeScale.height();
-    if (paneWidth <= 0 || x < 0 || y < 0 || x > paneWidth || y > paneHeight) return null;
+    const canvas = container.querySelector("canvas");
+    const paneWidth =
+      timeScale.width() > 0
+        ? timeScale.width()
+        : canvas?.clientWidth && canvas.clientWidth > 0
+        ? canvas.clientWidth
+        : rect.width > 50
+        ? rect.width - 50
+        : rect.width;
+    const paneHeight =
+      timeScale.height() > 0 && rect.height > timeScale.height()
+        ? rect.height - timeScale.height()
+        : canvas?.clientHeight && canvas.clientHeight > 0
+        ? canvas.clientHeight
+        : rect.height;
+    if (paneWidth <= 0 || paneHeight <= 0 || x < 0 || y < 0 || x > paneWidth || y > paneHeight) return null;
     return { x, y };
   }
 

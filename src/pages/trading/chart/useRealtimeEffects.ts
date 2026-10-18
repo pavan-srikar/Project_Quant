@@ -1,36 +1,19 @@
 import type { useQueryClient } from "@tanstack/react-query";
-import type {
-  CandlestickData,
-  IPriceLine,
-  ISeriesApi,
-  Time,
-} from "lightweight-charts";
+import type { CandlestickData, IPriceLine, ISeriesApi, Time } from "lightweight-charts";
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
 import type { useChartPreferences } from "../../../hooks/useChartPreferences.ts";
 import type { Order, Position, Symbol } from "../../../services/schemas.ts";
+import { useTradingStore } from "../../../services/stores/useTradingStore.ts";
 import type { DrawingLine, Timeframe } from "../constants.ts";
-import { frameLatestCandles } from "./chartFraming.ts";
+import { frameHistoricalViewport, frameLatestCandles } from "./chartFraming.ts";
+import { addOrderOverlay, addPositionOverlay, clearPriceLines } from "./chartOverlays.ts";
 import {
-  addOrderOverlay,
-  addPositionOverlay,
-  clearPriceLines,
-} from "./chartOverlays.ts";
-import {
-  applyBidAskLines,
-  applyServerCandle,
-  applyTick,
-  reapplyLive,
-  replayBufferedLive,
-  scheduleStaleRefetch,
+  applyBidAskLines, applyServerCandle, applyTick,
+  reapplyLive, replayBufferedLive, scheduleStaleRefetch,
 } from "./realtimeFeed.ts";
 import type {
-  ChartColors,
-  LiveCandleData,
-  OhlcvLegend,
-  OverlayOpts,
-  ReplayTradeEvent,
-  RtCtx,
-  TickData,
+  ChartColors, LiveCandleData, OhlcvLegend, OverlayOpts,
+  ReplayTradeEvent, RtCtx, TickData,
 } from "./types.ts";
 import { useCandleCountdown } from "./useCandleCountdown.ts";
 import { legendFromSeries } from "./useChartDataPipeline.ts";
@@ -56,6 +39,11 @@ export interface RealtimeEffectsParams {
   initialLoadCompleteRef: RefObject<boolean>;
   lastRenderedBarCountRef: RefObject<number>;
   hasUserPannedOrZoomedRef: RefObject<boolean>;
+  isScrolledBackRef?: RefObject<boolean>;
+  needsTfReframeRef?: RefObject<boolean>;
+  isChangingTfRef?: RefObject<boolean>;
+  pendingHistoricalTargetRef?: RefObject<{ centerTime: number; barCount: number; targetSymbol: string } | null>;
+  lastVisibleTimeRangeRef?: RefObject<{ from: number; to: number; centerTime?: number; barCount?: number } | null>;
   setLegend: Dispatch<SetStateAction<OhlcvLegend | null>>;
   liveCandle?: LiveCandleData;
   tick?: TickData;
@@ -76,39 +64,15 @@ export interface RealtimeEffectsParams {
 
 export function useRealtimeEffects(params: RealtimeEffectsParams) {
   const {
-    chartRef,
-    candleSeriesRef,
-    volumeSeriesRef,
-    chartData,
-    volumeData,
-    selectedSymbol,
-    timeframe,
-    makeRtCtx,
-    lastLoadKeyRef,
-    lastLoadedSeriesRef,
-    lastCandleRef,
-    latestLiveCandleRef,
-    liveCandleTsRef,
-    lastGapRefetchAtRef,
-    initialLoadCompleteRef,
-    lastRenderedBarCountRef,
-    hasUserPannedOrZoomedRef,
-    setLegend,
-    liveCandle,
-    tick,
-    drawingsRef,
-    pipDigits,
-    isReplaying,
-    queryClient,
-    chartPrefs,
-    priceLineRef,
-    slTpLinesRef,
-    positions,
-    orders,
-    colors,
-    symbolInfo,
-    replayTradeEvents,
-    setCountdown,
+    chartRef, candleSeriesRef, volumeSeriesRef, chartData, volumeData,
+    selectedSymbol, timeframe, makeRtCtx, lastLoadKeyRef, lastLoadedSeriesRef,
+    lastCandleRef, latestLiveCandleRef, liveCandleTsRef, lastGapRefetchAtRef,
+    initialLoadCompleteRef, lastRenderedBarCountRef, hasUserPannedOrZoomedRef,
+    isScrolledBackRef, needsTfReframeRef, isChangingTfRef, pendingHistoricalTargetRef,
+    lastVisibleTimeRangeRef, setLegend, liveCandle, tick, drawingsRef,
+    pipDigits, isReplaying, queryClient, chartPrefs, priceLineRef,
+    slTpLinesRef, positions, orders, colors, symbolInfo,
+    replayTradeEvents, setCountdown,
   } = params;
 
   // 1. Keep latest live candle in a ref (avoids stale closure in setData effect)
@@ -126,53 +90,99 @@ export function useRealtimeEffects(params: RealtimeEffectsParams) {
       lastLoadKeyRef.current !== loadKey ||
       lastLoadedSeriesRef.current !== series;
 
+    // Capture target before setData fires timescale listeners that could clear state
+    const saved = lastVisibleTimeRangeRef?.current;
+    const target =
+      pendingHistoricalTargetRef?.current?.targetSymbol === selectedSymbol
+        ? pendingHistoricalTargetRef.current
+        : isScrolledBackRef?.current && saved
+          ? {
+              centerTime: saved.centerTime ?? Math.round((saved.from + saved.to) / 2),
+              barCount: saved.barCount && saved.barCount > 10 ? saved.barCount : 80,
+              targetSymbol: selectedSymbol,
+            }
+          : null;
+
+    if (isChangingTfRef) isChangingTfRef.current = true;
+
     series.setData(chartData);
     volumeSeriesRef.current?.setData(volumeData);
     lastCandleRef.current = chartData[chartData.length - 1] ?? null;
+    const prevKey = lastLoadKeyRef.current;
     lastLoadKeyRef.current = loadKey;
     lastLoadedSeriesRef.current = series;
     setLegend(legendFromSeries(chartData, volumeData));
 
     const buffered = latestLiveCandleRef.current;
     const isInitialLoad = !initialLoadCompleteRef.current;
-    const barCountJump =
-      Math.abs(chartData.length - lastRenderedBarCountRef.current) > 50;
-    const shouldReframe =
-      isNewChart ||
-      isInitialLoad ||
-      (!hasUserPannedOrZoomedRef.current && barCountJump);
+    const isTfChange = Boolean(
+      needsTfReframeRef?.current ||
+      (prevKey && prevKey.startsWith(`${selectedSymbol}:`) && prevKey !== loadKey)
+    );
+    const anchor = useTradingStore.getState().chartViewportAnchor;
+    const isAnchorMatch = Boolean(anchor && anchor.symbol === selectedSymbol);
+    const shouldReframe = isNewChart || isInitialLoad || isTfChange || isAnchorMatch;
 
     lastRenderedBarCountRef.current = chartData.length;
 
+    if (chartData.length === 0) {
+      return;
+    }
+
     if (!shouldReframe) {
-      // Periodic refetch — preserve viewport, re-apply latest live data.
+      if (isChangingTfRef) isChangingTfRef.current = false;
       reapplyLive(buffered, ctx);
       return;
     }
 
     initialLoadCompleteRef.current = true;
-    frameLatestCandles(chartRef.current, chartData.length);
+    if (needsTfReframeRef) needsTfReframeRef.current = false;
+
+    if (isAnchorMatch && anchor) {
+      frameHistoricalViewport(
+        chartRef.current, chartData, anchor.centerTime, 80,
+        chartPrefs.autoScale, { from: anchor.fromTime, to: anchor.toTime },
+      );
+      useTradingStore.getState().setChartViewportAnchor(null);
+      if (lastVisibleTimeRangeRef) {
+        lastVisibleTimeRangeRef.current = {
+          from: anchor.fromTime,
+          to: anchor.toTime,
+          centerTime: anchor.centerTime,
+          barCount: 80,
+        };
+      }
+      if (pendingHistoricalTargetRef) {
+        pendingHistoricalTargetRef.current = {
+          centerTime: anchor.centerTime,
+          barCount: 80,
+          targetSymbol: selectedSymbol,
+        };
+      }
+      if (isScrolledBackRef) isScrolledBackRef.current = true;
+    } else if (target) {
+      frameHistoricalViewport(
+        chartRef.current, chartData, target.centerTime, target.barCount,
+        chartPrefs.autoScale, saved ? { from: saved.from, to: saved.to } : null,
+      );
+    } else {
+      frameLatestCandles(chartRef.current, chartData.length, chartPrefs.autoScale);
+    }
     liveCandleTsRef.current = 0;
     replayBufferedLive(buffered, chartData, ctx);
+
+    requestAnimationFrame(() => {
+      if (isChangingTfRef) isChangingTfRef.current = false;
+    });
+
     return scheduleStaleRefetch(chartData, ctx);
   }, [
-    chartData,
-    volumeData,
-    selectedSymbol,
-    timeframe,
-    makeRtCtx,
-    candleSeriesRef,
-    volumeSeriesRef,
-    lastLoadKeyRef,
-    lastLoadedSeriesRef,
-    lastCandleRef,
-    latestLiveCandleRef,
-    setLegend,
-    initialLoadCompleteRef,
-    lastRenderedBarCountRef,
-    hasUserPannedOrZoomedRef,
-    chartRef,
-    liveCandleTsRef,
+    chartData, volumeData, selectedSymbol, timeframe, makeRtCtx,
+    candleSeriesRef, volumeSeriesRef, lastLoadKeyRef, lastLoadedSeriesRef,
+    lastCandleRef, latestLiveCandleRef, setLegend, initialLoadCompleteRef,
+    lastRenderedBarCountRef, hasUserPannedOrZoomedRef, chartRef, liveCandleTsRef,
+    isChangingTfRef, isScrolledBackRef, needsTfReframeRef,
+    pendingHistoricalTargetRef, lastVisibleTimeRangeRef, chartPrefs.autoScale,
   ]);
 
   // 3. Real-time candle updates: server-aggregated CandleUpdate
@@ -193,14 +203,7 @@ export function useRealtimeEffects(params: RealtimeEffectsParams) {
   useLineCrossAlerts(tick, drawingsRef, selectedSymbol, pipDigits);
 
   // 6. Staleness watchdog
-  useStalenessWatchdog(
-    isReplaying,
-    timeframe,
-    lastCandleRef,
-    lastGapRefetchAtRef,
-    queryClient,
-    selectedSymbol,
-  );
+  useStalenessWatchdog(isReplaying, timeframe, lastCandleRef, lastGapRefetchAtRef, queryClient, selectedSymbol);
 
   // 7. Live bid/ask price tracking lines
   useEffect(() => {
@@ -208,19 +211,10 @@ export function useRealtimeEffects(params: RealtimeEffectsParams) {
     if (!series) return;
     applyBidAskLines(
       tick,
-      {
-        showBidLine: chartPrefs.showBidLine,
-        showAskLine: chartPrefs.showAskLine,
-      },
+      { showBidLine: chartPrefs.showBidLine, showAskLine: chartPrefs.showAskLine },
       makeRtCtx(series),
     );
-  }, [
-    tick,
-    chartPrefs.showBidLine,
-    chartPrefs.showAskLine,
-    makeRtCtx,
-    candleSeriesRef,
-  ]);
+  }, [tick, chartPrefs.showBidLine, chartPrefs.showAskLine, makeRtCtx, candleSeriesRef]);
 
   // 8. Position/order overlays
   useEffect(() => {
@@ -238,22 +232,10 @@ export function useRealtimeEffects(params: RealtimeEffectsParams) {
       contractSize: symbolInfo?.contractSize || 100000,
     };
     for (const pos of positions) {
-      addPositionOverlay(
-        series,
-        pos,
-        opts,
-        priceLineRef.current,
-        slTpLinesRef.current,
-      );
+      addPositionOverlay(series, pos, opts, priceLineRef.current, slTpLinesRef.current);
     }
     for (const ord of orders) {
-      addOrderOverlay(
-        series,
-        ord,
-        selectedSymbol,
-        colors.orderLine,
-        priceLineRef.current,
-      );
+      addOrderOverlay(series, ord, selectedSymbol, colors.orderLine, priceLineRef.current);
     }
   }, [
     positions,

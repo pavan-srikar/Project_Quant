@@ -1,10 +1,94 @@
 import type { IChartApi, ISeriesApi } from "lightweight-charts";
 import { getMinMove } from "../utils.ts";
 
+export function findClosestCandleIndex(
+  data: readonly { time: any }[],
+  targetTime: number,
+): number {
+  if (data.length === 0) return 0;
+  let lo = 0;
+  let hi = data.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const t = Number(data[mid]?.time);
+    if (t < targetTime) lo = mid + 1;
+    else if (t > targetTime) hi = mid - 1;
+    else return mid;
+  }
+  if (lo >= data.length) return data.length - 1;
+  if (hi < 0) return 0;
+  const tLo = Number(data[lo]?.time);
+  const tHi = Number(data[hi]?.time);
+  return Math.abs(tLo - targetTime) < Math.abs(tHi - targetTime) ? lo : hi;
+}
+
+/**
+ * Frames a historical viewport centered on targetTime with consistent barCount (aspect ratio).
+ * If visibleTimeRange is provided, uses setVisibleRange to preserve exact time bounds.
+ * Momentarily auto-scales the price scale so candles are properly framed vertically,
+ * then locks to manual if keepAutoScale is false.
+ */
+export function frameHistoricalViewport(
+  chart: IChartApi | null,
+  data: readonly { time: any }[],
+  targetTime: number,
+  targetBarCount: number,
+  keepAutoScale: boolean = false,
+  visibleTimeRange?: { from: number; to: number } | null,
+): void {
+  if (!chart || data.length === 0) return;
+  const ts = chart.timeScale();
+  if (!ts) return;
+
+  const applyScale = () => {
+    try {
+      chart.priceScale("right").applyOptions({ autoScale: true });
+      if (!keepAutoScale) {
+        requestAnimationFrame(() => {
+          try {
+            chart.priceScale("right").applyOptions({ autoScale: false });
+          } catch {}
+        });
+      }
+    } catch {}
+  };
+
+  if (visibleTimeRange && visibleTimeRange.from < visibleTimeRange.to) {
+    const fromIdx = findClosestCandleIndex(data, visibleTimeRange.from);
+    const toIdx = findClosestCandleIndex(data, visibleTimeRange.to);
+    const span = toIdx - fromIdx;
+    if (span >= 15 && span <= 350) {
+      try {
+        ts.setVisibleRange({
+          from: visibleTimeRange.from as any,
+          to: visibleTimeRange.to as any,
+        });
+        applyScale();
+        return;
+      } catch {}
+    }
+  }
+
+  const count = targetBarCount && targetBarCount > 10 ? targetBarCount : 80;
+  const centerIdx = findClosestCandleIndex(data, targetTime);
+  const halfBars = Math.round(count / 2);
+  const from = Math.max(0, centerIdx - halfBars);
+  const to = from + count;
+
+  try {
+    ts.setVisibleLogicalRange({ from, to });
+    applyScale();
+  } catch {}
+}
+
 /**
  * Frames the latest candles on the chart canvas.
  */
-export function frameLatestCandles(chart: IChartApi | null, barCount: number): void {
+export function frameLatestCandles(
+  chart: IChartApi | null,
+  barCount: number,
+  keepAutoScale: boolean = false,
+): void {
   if (!chart || barCount <= 0) return;
   const ts = chart.timeScale();
   if (!ts) return;
@@ -15,6 +99,13 @@ export function frameLatestCandles(chart: IChartApi | null, barCount: number): v
       const to = barCount + 8;
       ts.setVisibleLogicalRange({ from, to });
       chart.priceScale("right").applyOptions({ autoScale: true });
+      if (!keepAutoScale) {
+        requestAnimationFrame(() => {
+          try {
+            chart.priceScale("right").applyOptions({ autoScale: false });
+          } catch {}
+        });
+      }
     } catch {
       try {
         ts.scrollToPosition(8, false);
@@ -22,7 +113,6 @@ export function frameLatestCandles(chart: IChartApi | null, barCount: number): v
     }
   };
   apply();
-  requestAnimationFrame(apply);
 }
 
 /**

@@ -112,6 +112,19 @@ export function useChartSync(
   useEffect(() => {
     if (!mainChart) return;
 
+    let rafId: number | null = null;
+    let pendingTime: number | null = null;
+
+    const dispatchTimeChange = (time: number | null) => {
+      pendingTime = time;
+      if (rafId === null) {
+        rafId = requestAnimationFrame(() => {
+          rafId = null;
+          onCrosshairTimeChange?.(pendingTime);
+        });
+      }
+    };
+
     const onMainCrosshair = (param: MouseEventParams) => {
       const chart = chartRef.current;
       const mainSeries = mainSeriesRef.current;
@@ -121,11 +134,11 @@ export function useChartSync(
         try {
           chart.clearCrosshairPosition();
         } catch {}
-        onCrosshairTimeChange?.(null);
+        dispatchTimeChange(null);
         return;
       }
 
-      onCrosshairTimeChange?.(param.time as number);
+      dispatchTimeChange(param.time as number);
 
       const val = timePriceMap.get(param.time as number);
       if (val !== undefined) {
@@ -141,6 +154,7 @@ export function useChartSync(
 
     mainChart.subscribeCrosshairMove(onMainCrosshair);
     return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
       try {
         mainChart.unsubscribeCrosshairMove(onMainCrosshair);
       } catch {}
@@ -152,16 +166,30 @@ export function useChartSync(
     const chart = chartRef.current;
     if (!chart) return;
 
+    let rafId: number | null = null;
+    let pendingTime: number | null = null;
+
+    const dispatchTimeChange = (time: number | null) => {
+      pendingTime = time;
+      if (rafId === null) {
+        rafId = requestAnimationFrame(() => {
+          rafId = null;
+          onCrosshairTimeChange?.(pendingTime);
+        });
+      }
+    };
+
     const onSubCrosshair = (param: MouseEventParams) => {
       if (!param.time) {
-        onCrosshairTimeChange?.(null);
+        dispatchTimeChange(null);
         return;
       }
-      onCrosshairTimeChange?.(param.time as number);
+      dispatchTimeChange(param.time as number);
     };
 
     chart.subscribeCrosshairMove(onSubCrosshair);
     return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
       try {
         chart.unsubscribeCrosshairMove(onSubCrosshair);
       } catch {}

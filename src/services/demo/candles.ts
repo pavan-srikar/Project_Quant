@@ -56,18 +56,29 @@ function rawSeries(symbol: string, timeframe: string): Candle[] {
   return series.get(`${symbol}_${timeframe}`) ?? fallbackSeries.get(`${symbol}_${timeframe}`) ?? [];
 }
 
-/** Start of the current period (seconds) for a timeframe. */
-function currentBucketSec(timeframe: string): number {
-  const interval = TF_SECONDS[timeframe] ?? 60;
-  const nowSec = Math.floor(Date.now() / 1000);
-  return nowSec - (nowSec % interval);
+
+
+export function areCandlesConnecting(a: Candle[], b: Candle[], timeframe: string): boolean {
+  if (a.length === 0 || b.length === 0) return true;
+  const intervalSec = TF_SECONDS[timeframe] ?? 3600;
+  const maxGapSec = Math.max(intervalSec * 4, 4 * 86400);
+  const aFirst = a[0]!.time;
+  const aLast = a[a.length - 1]!.time;
+  const bFirst = b[0]!.time;
+  const bLast = b[b.length - 1]!.time;
+  if (bLast < aFirst) return (aFirst - bLast) <= maxGapSec;
+  if (aLast < bFirst) return (bFirst - aLast) <= maxGapSec;
+  return true;
 }
 
-/** Per-(symbol,timeframe) time delta that maps the last real bar onto "now" (used only for offline fallback data). */
-function shiftDelta(bars: Candle[], timeframe: string): number {
-  if (bars.length === 0) return 0;
-  const lastReal = bars[bars.length - 1]!.time;
-  return currentBucketSec(timeframe) - lastReal;
+export function hasDiscontinuity(bars: Candle[], timeframe: string): boolean {
+  if (bars.length < 2) return false;
+  const intervalSec = TF_SECONDS[timeframe] ?? 3600;
+  const maxGapSec = Math.max(intervalSec * 4, 4 * 86400);
+  for (let i = 1; i < bars.length; i++) {
+    if (bars[i]!.time - bars[i - 1]!.time > maxGapSec) return true;
+  }
+  return false;
 }
 
 function mergeCandleArrays(a: Candle[], b: Candle[]): Candle[] {
@@ -77,62 +88,20 @@ function mergeCandleArrays(a: Candle[], b: Candle[]): Candle[] {
   return Array.from(map.values()).sort((x, y) => x.time - y.time);
 }
 
-function extendHistoryBackwards(candles: Candle[], targetCount: number, intervalSec: number): Candle[] {
-  if (candles.length >= targetCount || candles.length === 0) return candles;
-  const countToGenerate = targetCount - candles.length;
-  const first = candles[0]!;
-  let currentPrice = first.open;
-  let currentTime = first.time;
-  const generated: Candle[] = [];
-
-  const sample = candles.slice(0, 50);
-  const avgRange =
-    sample.reduce((sum, c) => sum + Math.abs(c.high - c.low), 0) / sample.length || currentPrice * 0.005;
-
-  for (let i = 0; i < countToGenerate; i++) {
-    currentTime -= intervalSec;
-    const delta = (Math.random() - 0.495) * avgRange;
-    const close = Math.max(currentPrice * 0.1, currentPrice);
-    const open = Math.max(currentPrice * 0.1, close - delta);
-    const high = Math.max(open, close) + Math.random() * avgRange * 0.4;
-    const low = Math.min(open, close) - Math.random() * avgRange * 0.4;
-    const volume = Math.floor(Math.random() * 500 + 100);
-
-    generated.unshift({
-      time: currentTime,
-      open,
-      high,
-      low,
-      close,
-      volume,
-    });
-    currentPrice = open;
-  }
-
-  return [...generated, ...candles];
-}
-
-/** Real history for a symbol/timeframe. Fallback snapshots are shifted to current time; live data is returned as-is. */
-export function getHistory(symbol: string, timeframe: string, limit?: number): Candle[] {
+/** Real history for a symbol/timeframe. Returns genuine Binance series or bundled offline snapshot as-is. */
+export function getHistory(
+  symbol: string,
+  timeframe: string,
+  limit?: number,
+  targetTimeSec?: number,
+): Candle[] {
   const key = `${symbol}_${timeframe}`;
   const isLive = series.has(key);
   const bars = isLive ? series.get(key)! : fallbackSeries.get(key) ?? [];
   if (bars.length === 0) return [];
 
-  // Live Binance data already has genuine current timestamps — do NOT shift it!
-  const shifted = isLive
-    ? bars
-    : (() => {
-        const delta = shiftDelta(bars, timeframe);
-        const shiftedBars = bars.map((c) => ({ ...c, time: c.time + delta }));
-        if (limit && limit > shiftedBars.length) {
-          const interval = TF_SECONDS[timeframe] ?? 60;
-          return extendHistoryBackwards(shiftedBars, limit, interval);
-        }
-        return shiftedBars;
-      })();
-
-  return limit && limit < shifted.length ? shifted.slice(-limit) : shifted;
+  if (targetTimeSec && targetTimeSec > 0) return bars;
+  return limit && limit < bars.length ? bars.slice(-limit) : bars;
 }
 
 const liveLoaded = new Set<string>();
@@ -143,6 +112,7 @@ export async function ensureCandlesLoaded(
   timeframe: string,
   limit = 1000,
   range?: { fromMs: number; toMs: number },
+  targetTimeSec?: number,
 ): Promise<Candle[]> {
   const cacheKey = `${symbol}_${timeframe}`;
   const pair = symbolToBinancePair(symbol);
@@ -153,47 +123,79 @@ export async function ensureCandlesLoaded(
       const fetched = await fetchBinanceKlinesRange(pair, timeframe, range.fromMs, range.toMs);
       if (fetched.length > 0) {
         const existing = series.get(cacheKey) ?? [];
-        const merged = mergeCandleArrays(existing, fetched);
-        series.set(cacheKey, merged);
+        if (areCandlesConnecting(existing, fetched, timeframe)) {
+          const merged = mergeCandleArrays(existing, fetched);
+          series.set(cacheKey, merged);
+        } else {
+          series.set(cacheKey, fetched);
+        }
         return fetched;
       }
     } catch (err) {
       console.warn(`Range fetch failed for ${symbol} (${timeframe}):`, err);
     }
-    // Fallback to offline dataset for range if Binance request failed or offline
-    const fallback = getHistory(symbol, timeframe, 10000);
-    const fromSec = Math.floor(range.fromMs / 1000);
-    const toSec = Math.floor(range.toMs / 1000);
-    const inRange = fallback.filter((c) => c.time >= fromSec && c.time <= toSec);
-    if (inRange.length > 0) {
-      return inRange;
-    }
     return [];
   }
 
-  // 2. Standard limit-based load
+  // 2. Standard limit or target-based load
   const existing = series.get(cacheKey) ?? [];
 
+  if (targetTimeSec && targetTimeSec > 0) {
+    const coversTarget =
+      existing.length > 0 &&
+      existing[0]!.time <= targetTimeSec &&
+      targetTimeSec <= existing[existing.length - 1]!.time &&
+      !hasDiscontinuity(existing, timeframe);
+    if (coversTarget) return existing;
+
+    try {
+      const intervalSec = TF_SECONDS[timeframe] ?? 3600;
+      const nowSec = Math.floor(Date.now() / 1000);
+      const endMs = Math.min(nowSec, targetTimeSec + 500 * intervalSec) * 1000;
+      const targetCandles = await fetchBinanceKlinesMulti(pair, timeframe, 1500, endMs);
+      if (targetCandles.length > 0) {
+        if (areCandlesConnecting(existing, targetCandles, timeframe)) {
+          const merged = mergeCandleArrays(existing, targetCandles);
+          series.set(cacheKey, merged);
+          return merged;
+        } else {
+          series.set(cacheKey, targetCandles);
+          return targetCandles;
+        }
+      }
+    } catch (err) {
+      console.warn(`Target-time fetch failed for ${symbol} (${timeframe}):`, err);
+    }
+  }
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  const intervalSec = TF_SECONDS[timeframe] ?? 3600;
+  const isExistingLive =
+    existing.length > 0 &&
+    nowSec - existing[existing.length - 1]!.time <= Math.max(intervalSec * 3, 86400 * 3) &&
+    !hasDiscontinuity(existing, timeframe);
+
   // If already loaded from live source and have enough candles, return slice immediately
-  if (liveLoaded.has(cacheKey) && existing.length >= limit) {
+  if (!targetTimeSec && isExistingLive && liveLoaded.has(cacheKey) && existing.length >= limit) {
     return existing.slice(-limit);
   }
 
   try {
-    if (!liveLoaded.has(cacheKey) || existing.length === 0) {
-      // First load: fetch at least 1,000 candles or full requested limit
+    if (!liveLoaded.has(cacheKey) || !isExistingLive || existing.length === 0) {
       const toFetch = Math.max(limit, 1000);
       const fetched = await fetchBinanceKlinesMulti(pair, timeframe, toFetch);
       if (fetched.length > 0) {
-        series.set(cacheKey, fetched);
+        const merged = areCandlesConnecting(existing, fetched, timeframe)
+          ? mergeCandleArrays(existing, fetched)
+          : fetched;
+        series.set(cacheKey, merged);
         liveLoaded.add(cacheKey);
         const lastClose = fetched[fetched.length - 1]!.close;
         saveKnownPrice(symbol, lastClose);
         updateFeedPrice(symbol, lastClose);
 
-        // Also ensure 1m tick series is available from Binance for tick simulator
         if (timeframe === "1m") {
-          series.set(`${symbol}_1m`, fetched);
+          series.set(`${symbol}_1m`, merged);
           liveLoaded.add(`${symbol}_1m`);
         } else if (!liveLoaded.has(`${symbol}_1m`)) {
           fetchBinanceKlines(pair, "1m", 1000)
@@ -206,18 +208,19 @@ export async function ensureCandlesLoaded(
             .catch(() => {});
         }
 
-        return limit && limit < fetched.length ? fetched.slice(-limit) : fetched;
+        return targetTimeSec || limit >= merged.length ? merged : merged.slice(-limit);
       }
     } else if (existing.length < limit) {
-      // Expanding cache for deep history request
       const needed = limit - existing.length;
       const oldestMs = existing[0]!.time * 1000 - 1;
       const older = await fetchBinanceKlinesMulti(pair, timeframe, needed, oldestMs);
       if (older.length > 0) {
-        const merged = mergeCandleArrays(older, existing);
+        const merged = areCandlesConnecting(existing, older, timeframe)
+          ? mergeCandleArrays(older, existing)
+          : existing;
         series.set(cacheKey, merged);
         liveLoaded.add(cacheKey);
-        return limit && limit < merged.length ? merged.slice(-limit) : merged;
+        return targetTimeSec || limit >= merged.length ? merged : merged.slice(-limit);
       }
       return existing;
     }
@@ -225,13 +228,12 @@ export async function ensureCandlesLoaded(
     console.warn(`Live Binance fetch failed for ${symbol} (${timeframe}), using bundled fallback:`, err);
   }
 
-  // Fallback to bundled offline dataset if network unavailable
   let fallback = rawSeries(symbol, timeframe);
   if (fallback.length === 0) {
     fallback = await loadFallbackSeries(symbol, timeframe);
   }
   if (fallback.length > 0) {
-    return getHistory(symbol, timeframe, limit);
+    return getHistory(symbol, timeframe, limit, targetTimeSec);
   }
 
   return existing;

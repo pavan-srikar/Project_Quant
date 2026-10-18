@@ -7,6 +7,7 @@ import {
   type SetStateAction,
 } from "react";
 import type { DrawingToolsManager } from "../../../lib/chart-plugins/drawing-tools/manager.ts";
+import { updateChartPreferences, type ChartPreferences } from "../../../hooks/useChartPreferences.ts";
 import { toast } from "../../../services/toast.ts";
 import { TF_INTERVAL_MS, type DrawingLine } from "../constants.ts";
 
@@ -23,6 +24,7 @@ export interface ChartContextMenuActionsParams {
   onUpdateDrawing?: (d: DrawingLine) => void;
   selectedDrawing: DrawingLine | null;
   drawingManagerRef: RefObject<DrawingToolsManager | null>;
+  chartPrefs?: Pick<ChartPreferences, "autoScale">;
 }
 
 export function useChartContextMenuActions({
@@ -38,6 +40,7 @@ export function useChartContextMenuActions({
   onUpdateDrawing,
   selectedDrawing,
   drawingManagerRef,
+  chartPrefs,
 }: ChartContextMenuActionsParams) {
   const handleChartContextMenu = useCallback(
     (e: ReactMouseEvent<HTMLDivElement>) => {
@@ -54,13 +57,26 @@ export function useChartContextMenuActions({
     [candleSeriesRef, drawingMenuOpenedRef, setChartMenu],
   );
 
+  const handleToggleAutoScale = useCallback(() => {
+    const next = !(chartPrefs?.autoScale ?? false);
+    updateChartPreferences({ autoScale: next });
+    chartRef.current?.priceScale("right").applyOptions({ autoScale: next });
+  }, [chartPrefs?.autoScale, chartRef]);
+
   const handleResetView = useCallback(() => {
     const chart = chartRef.current;
     if (!chart) return;
     chart.timeScale().resetTimeScale();
     chart.priceScale("right").applyOptions({ autoScale: true });
+    if (!chartPrefs?.autoScale) {
+      requestAnimationFrame(() => {
+        try {
+          chart.priceScale("right").applyOptions({ autoScale: false });
+        } catch {}
+      });
+    }
     chart.timeScale().scrollToRealTime();
-  }, [chartRef]);
+  }, [chartRef, chartPrefs?.autoScale]);
 
   const handleCopyPrice = useCallback(
     (price: number) => {
@@ -117,6 +133,7 @@ export function useChartContextMenuActions({
   return {
     handleChartContextMenu,
     handleResetView,
+    handleToggleAutoScale,
     handleCopyPrice,
     handleAddAlert,
     handleCloneDrawing,

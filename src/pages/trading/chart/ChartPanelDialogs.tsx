@@ -76,6 +76,7 @@ export function ChartPanelDialogs({
       activeIndicators={activeIndicators}
       onSelectIndicatorSettings={(type) => indicators.setIndicatorSettingsModalType(type)}
       onResetView={menuActions.handleResetView}
+      onToggleAutoScale={menuActions.handleToggleAutoScale}
       onCopyPrice={menuActions.handleCopyPrice}
       onAddAlert={menuActions.handleAddAlert}
       onQuickOrder={onQuickOrder}

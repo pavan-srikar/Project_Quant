@@ -38,6 +38,7 @@ export interface ChartDialogsProps {
   activeIndicators: IndicatorType[];
   onSelectIndicatorSettings: (type: IndicatorType) => void;
   onResetView: () => void;
+  onToggleAutoScale?: () => void;
   onCopyPrice: (price: number) => void;
   onAddAlert: (price: number) => void;
   onQuickOrder?: (side: "BUY" | "SELL", type: "LIMIT" | "STOP", price: number) => void;
@@ -82,6 +83,7 @@ export function ChartDialogs({
   activeIndicators,
   onSelectIndicatorSettings,
   onResetView,
+  onToggleAutoScale,
   onCopyPrice,
   onAddAlert,
   onQuickOrder,
@@ -159,6 +161,8 @@ export function ChartDialogs({
           onSelectIndicatorSettings={onSelectIndicatorSettings}
           onClose={() => setChartMenu(null)}
           onResetView={onResetView}
+          autoScale={chartPrefs.autoScale}
+          onToggleAutoScale={onToggleAutoScale}
           onCopyPrice={onCopyPrice}
           onAddAlert={onAddAlert}
           onQuickOrder={onQuickOrder}

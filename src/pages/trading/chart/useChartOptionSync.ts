@@ -30,7 +30,7 @@ export function useChartOptionSync({
   selectedSymbol,
   timeframe,
   chartEpoch,
-  hideTimeScale,
+  hideTimeScale = false,
 }: ChartOptionSyncParams) {
   // 1. Watermark sync
   useEffect(() => {
@@ -102,12 +102,19 @@ export function useChartOptionSync({
     );
   }, [timeframe, chartRef, drawingManagerRef, timeframeRef]);
 
-  // 6. TimeScale visibility sync (hidden when bottom indicator panel is open)
+  // 6. TimeScale visibility sync (hidden when bottom indicators panel is active)
   useEffect(() => {
     chartRef.current?.applyOptions({
       timeScale: {
         visible: !hideTimeScale,
       },
     });
-  }, [hideTimeScale, chartEpoch, chartRef]);
+  }, [chartEpoch, chartRef, hideTimeScale]);
+
+  // 7. AutoScale sync
+  useEffect(() => {
+    chartRef.current?.priceScale("right").applyOptions({
+      autoScale: chartPrefs.autoScale ?? false,
+    });
+  }, [chartPrefs.autoScale, chartEpoch, chartRef]);
 }

@@ -140,8 +140,9 @@ export const demoApi = {
     timeframe: string,
     limit?: number,
     range?: { fromMs: number; toMs: number },
+    targetTimeSec?: number,
   ) => {
-    const candles = await ensureCandlesLoaded(symbol, timeframe, limit, range);
+    const candles = await ensureCandlesLoaded(symbol, timeframe, limit, range, targetTimeSec);
     registerFeedSymbol(symbol);
     return candles;
   },
@@ -150,8 +151,9 @@ export const demoApi = {
     timeframe: string,
     limit?: number,
     range?: { fromMs: number; toMs: number },
+    targetTimeSec?: number,
   ) => {
-    const candles = await ensureCandlesLoaded(symbol, timeframe, limit, range);
+    const candles = await ensureCandlesLoaded(symbol, timeframe, limit, range, targetTimeSec);
     registerFeedSymbol(symbol);
     return candlesMeta(candles);
   },

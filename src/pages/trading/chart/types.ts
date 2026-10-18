@@ -104,6 +104,7 @@ export type ReplayTradeEvent = NonNullable<
 >[number];
 
 export interface ChartPanelProps {
+  hideTimeScale?: boolean;
   candles: Candle[];
   selectedSymbol: string;
   timeframe: Timeframe;
@@ -171,8 +172,6 @@ export interface ChartPanelProps {
   onChartReady?: (chart: IChartApi | null) => void;
   /** Callback when the merged candles (historicalExtra + live) changes */
   onAllCandlesChange?: (candles: Candle[]) => void;
-  /** Hide the bottom time scale axis (e.g. when bottom oscillator panel is active) */
-  hideTimeScale?: boolean;
 }
 
 export interface ChartLifecycleParams {
@@ -183,6 +182,10 @@ export interface ChartLifecycleParams {
   drawingManagerRef: RefObject<DrawingToolsManager | null>;
   loadMoreRef: RefObject<LoadMoreState>;
   hasUserPannedOrZoomedRef: RefObject<boolean>;
+  isScrolledBackRef?: RefObject<boolean>;
+  isChangingTfRef?: RefObject<boolean>;
+  pendingHistoricalTargetRef?: RefObject<{ centerTime: number; barCount: number; targetSymbol: string } | null>;
+  lastVisibleTimeRangeRef?: RefObject<{ from: number; to: number; centerTime?: number; barCount?: number } | null>;
   timeframeRef: RefObject<Timeframe>;
   allCandlesRef: RefObject<Candle[]>;
   lastCandleRef: RefObject<CandlestickData<Time> | null>;

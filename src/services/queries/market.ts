@@ -50,14 +50,25 @@ export function useCandles(
   timeframe: string,
   limit?: number,
   replayVersion?: number,
+  targetTimeSec?: number,
 ) {
   return useQuery<MarketDataCandlesPayload, Error, Candle[]>({
-    // Include replayVersion in the query key so each replay session forces a
-    // completely fresh query — React Query won't reuse structural sharing or
-    // stale cache from a previous replay / normal session.
-    queryKey: [...queryKeys.market.candles(symbol, timeframe), limit ?? "auto", replayVersion ?? 0],
+    // Include replayVersion and targetTimeSec in the query key so React Query
+    // caches and partitions target historical ranges cleanly.
+    queryKey: [
+      ...queryKeys.market.candles(symbol, timeframe),
+      limit ?? "auto",
+      replayVersion ?? 0,
+      targetTimeSec ?? 0,
+    ],
     queryFn: () =>
-      api.getCandlesWithMeta(symbol, timeframe, limit) as unknown as Promise<MarketDataCandlesPayload>,
+      api.getCandlesWithMeta(
+        symbol,
+        timeframe,
+        limit,
+        undefined,
+        targetTimeSec,
+      ) as unknown as Promise<MarketDataCandlesPayload>,
     // Extract just the candles array for consumers — raw payload (with isPartial)
     // is still accessible via query.state.data inside refetchInterval below.
     select: (data) => data.candles,

@@ -454,6 +454,9 @@ Every file in `src/` is strictly under 300 lines with a single, clear responsibi
 - `src/__tests__/favoriteDrawingTools.test.ts` — Unit tests for drawing rail tool reordering and storage.
 - `src/__tests__/volumeProfileHitTest.test.ts` — Unit tests for volume profile geometric collision detection.
 - `src/__tests__/button.test.tsx` — React component tests for button rendering, variants, and interactions.
+- `src/__tests__/drawingPlacement.test.ts` — Unit tests for click and drag drawing tool placement.
+- `src/__tests__/chartPerformanceAndHistory.test.ts` — Performance and historical candle pagination tests.
+- `src/__tests__/drawingCrossTimeframe.test.ts` — Unit tests validating timestamp preservation across timeframes and single bottom date bar.
 
 ---
 

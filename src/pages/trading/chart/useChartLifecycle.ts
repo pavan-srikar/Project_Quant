@@ -15,53 +15,17 @@ export type { ChartLifecycleParams };
 
 export function useChartLifecycle(params: ChartLifecycleParams) {
   const {
-    containerRef,
-    chartRef,
-    candleSeriesRef,
-    volumeSeriesRef,
-    drawingManagerRef,
-    loadMoreRef,
-    hasUserPannedOrZoomedRef,
-    timeframeRef,
-    allCandlesRef,
-    lastCandleRef,
-    lastLoadKeyRef,
-    lastLoadedSeriesRef,
-    liveCandleTsRef,
-    legendVolRef,
-    legendRestoredRef,
-    lastGapRefetchAtRef,
-    bidLineRef,
-    askLineRef,
-    midLineRef,
-    chartPluginsRef,
-    drawingMenuOpenedRef,
-    onChartReady,
-    setLegend,
-    setHistoricalExtra,
-    setSelectedDrawingIds,
-    setShowDrawingSettings,
-    setContextMenu,
-    drawingToolRef,
-    drawingsRef,
-    magnetRef,
-    stayInModeRef,
-    accountEquityRef,
-    styleDefaultsRef,
-    onAddDrawingRef,
-    onUpdateDrawingRef,
-    onRemoveDrawingRef,
-    onDrawingCompleteRef,
-    onDrawingToolSelectRef,
-    onUndoDrawingRef,
-    onRedoDrawingRef,
-    isDark,
-    pipDigits,
-    colors,
-    chartPrefs,
-    selectedSymbol,
-    timeframe,
-    hideTimeScale,
+    containerRef, chartRef, candleSeriesRef, volumeSeriesRef, drawingManagerRef,
+    loadMoreRef, hasUserPannedOrZoomedRef, isScrolledBackRef, isChangingTfRef,
+    pendingHistoricalTargetRef, lastVisibleTimeRangeRef, timeframeRef, allCandlesRef,
+    lastCandleRef, lastLoadKeyRef, lastLoadedSeriesRef, liveCandleTsRef, legendVolRef,
+    legendRestoredRef, lastGapRefetchAtRef, bidLineRef, askLineRef, midLineRef,
+    chartPluginsRef, drawingMenuOpenedRef, onChartReady, setLegend, setHistoricalExtra,
+    setSelectedDrawingIds, setShowDrawingSettings, setContextMenu, drawingToolRef,
+    drawingsRef, magnetRef, stayInModeRef, accountEquityRef, styleDefaultsRef,
+    onAddDrawingRef, onUpdateDrawingRef, onRemoveDrawingRef, onDrawingCompleteRef,
+    onDrawingToolSelectRef, onUndoDrawingRef, onRedoDrawingRef, isDark, pipDigits,
+    colors, chartPrefs, selectedSymbol, timeframe, hideTimeScale,
   } = params;
 
   const [chartEpoch, setChartEpoch] = useState(0);
@@ -127,6 +91,9 @@ export function useChartLifecycle(params: ChartLifecycleParams) {
     });
     drawingManagerRef.current = drawingManager;
 
+    const isUserInteractingRef = { current: false };
+    const isApplyingHistoryRef = { current: false };
+
     let historyLoadCancelled = false;
     const handleRangeChange = makeHistoryLoader(
       selectedSymbol,
@@ -134,22 +101,71 @@ export function useChartLifecycle(params: ChartLifecycleParams) {
       candleSeriesRef,
       loadMoreRef,
       (bars) => {
-        if (!historyLoadCancelled) setHistoricalExtra((prev) => [...bars, ...prev]);
+        if (historyLoadCancelled || bars.length === 0 || isChangingTfRef?.current) return;
+        const currentRange = chart.timeScale().getVisibleLogicalRange();
+        setHistoricalExtra((prev) => {
+          const map = new Map<number, any>();
+          for (const b of bars) map.set(b.time, b);
+          for (const p of prev) {
+            if (!map.has(p.time)) map.set(p.time, p);
+          }
+          return Array.from(map.values()).sort((a, b) => a.time - b.time);
+        });
+        if (currentRange) {
+          isApplyingHistoryRef.current = true;
+          requestAnimationFrame(() => {
+            try {
+              chart.timeScale().setVisibleLogicalRange({
+                from: currentRange.from + bars.length,
+                to: currentRange.to + bars.length,
+              });
+            } catch {}
+            requestAnimationFrame(() => {
+              isApplyingHistoryRef.current = false;
+            });
+          });
+        }
       },
+      () => allCandlesRef.current,
+      hasUserPannedOrZoomedRef,
+      isChangingTfRef,
+      isUserInteractingRef,
+      isApplyingHistoryRef,
     );
     const onRangeChange = (range: LogicalRange | null) => {
-      if (!range) return;
-      const state = loadMoreRef.current;
-      if (range.from < 0 && (state.noMoreData || range.from < -5)) {
-        const series = candleSeriesRef.current;
-        const totalBars = series ? series.data().length : 0;
-        if (totalBars > 0 && range.to > totalBars + 12) {
+      if (!range || isChangingTfRef?.current || isApplyingHistoryRef.current) return;
+      const totalBars = allCandlesRef.current.length;
+      if (totalBars > 0) {
+        const isBack = range.to < totalBars - 2;
+        if (isScrolledBackRef) isScrolledBackRef.current = isBack;
+        if (isBack && lastVisibleTimeRangeRef) {
           try {
-            chart.timeScale().setVisibleLogicalRange({
-              from: 0,
-              to: totalBars + 8,
-            });
+            const vr = chart.timeScale().getVisibleRange();
+            if (vr && typeof vr.from === "number" && typeof vr.to === "number" && vr.from < vr.to) {
+              const centerTime = Math.round(((vr.from as number) + (vr.to as number)) / 2);
+              const barCount = Math.max(30, Math.min(200, Math.round(range.to - range.from)));
+              lastVisibleTimeRangeRef.current = {
+                from: vr.from as number,
+                to: vr.to as number,
+                centerTime,
+                barCount,
+              };
+              if (pendingHistoricalTargetRef) {
+                pendingHistoricalTargetRef.current = { centerTime, barCount, targetSymbol: selectedSymbol };
+              }
+            }
           } catch {}
+        } else if (hasUserPannedOrZoomedRef.current && range.to >= totalBars - 2) {
+          // Explicit user scroll to the live edge
+          const lastBar = allCandlesRef.current[totalBars - 1];
+          const lastBarTime = lastBar ? Number(lastBar.time ?? (lastBar as any).timestamp) : 0;
+          const isLive = lastBarTime > 0 && Date.now() / 1000 - lastBarTime < 86400;
+          if (isLive) {
+            if (pendingHistoricalTargetRef) pendingHistoricalTargetRef.current = null;
+            if (lastVisibleTimeRangeRef) lastVisibleTimeRangeRef.current = null;
+          }
+        } else if (hasUserPannedOrZoomedRef.current && !pendingHistoricalTargetRef?.current && lastVisibleTimeRangeRef) {
+          lastVisibleTimeRangeRef.current = null;
         }
       }
       handleRangeChange(range);
@@ -166,18 +182,36 @@ export function useChartLifecycle(params: ChartLifecycleParams) {
       handleRangeChange,
     );
     container.addEventListener("wheel", onWheel, { capture: true, passive: false });
-    const onUserInteraction = () => {
+    let wheelTimer: any = null;
+    const onPointerDown = () => {
+      isUserInteractingRef.current = true;
       hasUserPannedOrZoomedRef.current = true;
     };
-    container.addEventListener("pointerdown", onUserInteraction, { passive: true });
-    container.addEventListener("wheel", onUserInteraction, { passive: true });
+    const onPointerUp = () => {
+      isUserInteractingRef.current = false;
+    };
+    const onWheelInteraction = () => {
+      isUserInteractingRef.current = true;
+      hasUserPannedOrZoomedRef.current = true;
+      if (wheelTimer) clearTimeout(wheelTimer);
+      wheelTimer = setTimeout(() => {
+        isUserInteractingRef.current = false;
+      }, 1500);
+    };
+    container.addEventListener("pointerdown", onPointerDown, { passive: true });
+    window.addEventListener("pointerup", onPointerUp, { passive: true });
+    window.addEventListener("pointercancel", onPointerUp, { passive: true });
+    container.addEventListener("wheel", onWheelInteraction, { passive: true });
 
     setChartEpoch((e) => e + 1);
 
     return () => {
       container.removeEventListener("wheel", onWheel, { capture: true } as EventListenerOptions);
-      container.removeEventListener("pointerdown", onUserInteraction);
-      container.removeEventListener("wheel", onUserInteraction);
+      container.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+      container.removeEventListener("wheel", onWheelInteraction);
+      if (wheelTimer) clearTimeout(wheelTimer);
       historyLoadCancelled = true;
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(onRangeChange);
       ro.disconnect();
@@ -199,12 +233,7 @@ export function useChartLifecycle(params: ChartLifecycleParams) {
       lastCandleRef.current = null;
       legendVolRef.current = 0;
       liveCandleTsRef.current = 0;
-      loadMoreRef.current = {
-        loading: false,
-        noMoreData: false,
-        lastFetchedBeforeMs: 0,
-        fetchFromMs: 0,
-      };
+      loadMoreRef.current = { loading: false, noMoreData: false, lastFetchedBeforeMs: 0, fetchFromMs: 0 };
       lastGapRefetchAtRef.current = 0;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

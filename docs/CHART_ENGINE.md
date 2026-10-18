@@ -75,24 +75,31 @@ Lightweight Charts throws an unrecoverable exception if timestamps are not stric
 
 ## 4. Viewport Framing Mathematics (`chartFraming.ts`)
 
-When switching symbols or timeframes, `frameLatestCandles` frames the latest 80 candles cleanly:
+When switching symbols, `frameLatestCandles` frames the latest 80 candles cleanly without forcing autoscale unless configured:
 ```ts
-export function frameLatestCandles(chart: IChartApi | null, barCount: number): void {
+export function frameLatestCandles(
+  chart: IChartApi | null,
+  barCount: number,
+  autoScale: boolean = false,
+): void {
   if (!chart || barCount <= 0) return;
   const ts = chart.timeScale();
   const visibleBars = Math.min(barCount, 80);
   const from = Math.max(0, barCount - visibleBars);
   const to = barCount + 8; // 8 bars right margin for comfortable forward view
   ts.setVisibleLogicalRange({ from, to });
-  chart.priceScale("right").applyOptions({ autoScale: true });
+  if (autoScale) chart.priceScale("right").applyOptions({ autoScale: true });
 }
 ```
 A second pass runs on `requestAnimationFrame` to ensure correct framing after the browser DOM layout pass.
+When switching timeframes on the *same symbol* while scrolled back into history, `useTradingStore.chartViewportTarget` stores the historical target center timestamp and visible bar count. `useCandleDepthLoader` calculates a dedicated `[fromMs, toMs]` window around this center timestamp and requests it directly via `useCandles` (`fetchBinanceKlinesRange`).
+The historical candles for the new timeframe load centered directly on the user's historical position. `frameHistoricalViewport` synchronously sets the logical range and computes the exact `minPrice` and `maxPrice` of the visible slice, preventing flashes to the live edge, vertical scale mismatches (e.g. 150k vs 67k), and auto-crawling cascades.
 
 ---
 
 ## 5. Infinite Historical Loading (`chartHistoryLoader.ts`)
 
 - Monitors `timeScale.subscribeVisibleLogicalRangeChange()`.
-- When `logicalRange.from <= 10`, fires `onLoadMoreHistory()`.
-- TanStack Query fetches the next batch of historical candles and prepends them without moving the user's viewport.
+- When `logicalRange.from <= LOAD_MORE_THRESHOLD (20)` AND the user is actively panning/zooming (`hasUserPannedOrZoomedRef.current === true`), fires `fetchOlderRange()`.
+- Automated or programmatic re-framing passes cannot trigger background fetches.
+- Fetches older historical candles and prepends them via `setHistoricalExtra` without moving the user's viewport or triggering re-frame cascades.

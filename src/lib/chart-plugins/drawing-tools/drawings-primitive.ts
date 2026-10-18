@@ -3,6 +3,7 @@ import type {
   ISeriesPrimitiveAxisView,
   ISeriesPrimitivePaneRenderer,
   ISeriesPrimitivePaneView,
+  SeriesPrimitivePaneViewZOrder,
 } from "lightweight-charts";
 import type { DrawingLine } from "../../../pages/trading/constants";
 import { PluginBase } from "../plugin-base";
@@ -40,6 +41,10 @@ class DrawingsPaneView implements ISeriesPrimitivePaneView {
 
   renderer(): ISeriesPrimitivePaneRenderer {
     return new DrawingsPaneRenderer(this._entries, this._source.drawInfo());
+  }
+
+  zOrder(): SeriesPrimitivePaneViewZOrder {
+    return "top";
   }
 }
 
@@ -182,6 +187,7 @@ export class DrawingsPrimitive extends PluginBase {
   }
 
   resolveEntries(): ResolvedEntry[] {
+    if (this._drawings.length === 0 && !this._preview) return [];
     const ctx = makeResolveCtx(this.chart, this.series, this._intervalSec, this._getCandles);
     const entries = this._drawings.map((d) => {
       const entry = resolveEntry(d, ctx, this._stateFor(d.id));

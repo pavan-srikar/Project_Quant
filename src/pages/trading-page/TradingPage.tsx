@@ -1,5 +1,6 @@
 import type { IChartApi } from "lightweight-charts";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import type { Timeframe } from "../trading/constants.ts";
 import { useIsFeedConnected } from "../../components/ConnectionIndicator.tsx";
 import {
   updateChartPreferences,
@@ -36,10 +37,54 @@ export function TradingPage() {
   // Layout resize state
   const layout = useTradingLayoutResize();
 
+  // Main chart reference & allCandles
+  const [mainChart, setMainChart] = useState<IChartApi | null>(null);
+  useEffect(() => {
+    (window as any).__mainChart = mainChart;
+  }, [mainChart]);
+  const [allCandles, setAllCandles] = useState<any[]>([]);
+  const [historicalTargetTime, setHistoricalTargetTime] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    setAllCandles([]);
+    setHistoricalTargetTime(undefined);
+    useTradingStore.getState().setChartViewportAnchor(null);
+  }, [selectedSymbol]);
+
   // Candle depth loader & timeframe
   const { timeframe, handleTimeframeChange, candles } = useCandleDepthLoader(
     selectedSymbol,
     replayVersion,
+    historicalTargetTime,
+  );
+
+  const onTimeframeChange = useCallback(
+    (tf: Timeframe) => {
+      const chart = mainChart ?? (window as any).__mainChart;
+      let anchor = null;
+      if (chart) {
+        try {
+          const vr = chart.timeScale().getVisibleRange();
+          const lr = chart.timeScale().getVisibleLogicalRange();
+          const totalBars = allCandles.length;
+          const hasValidVr =
+            vr && typeof vr.from === "number" && typeof vr.to === "number" && vr.from < vr.to;
+          const isAtLiveEdge = totalBars > 0 && lr && lr.to >= totalBars - 3;
+          if (!isAtLiveEdge && hasValidVr) {
+            anchor = {
+              symbol: selectedSymbol,
+              fromTime: vr.from as number,
+              toTime: vr.to as number,
+              centerTime: Math.round(((vr.from as number) + (vr.to as number)) / 2),
+            };
+          }
+        } catch {}
+      }
+      useTradingStore.getState().setChartViewportAnchor(anchor);
+      setHistoricalTargetTime(anchor ? anchor.centerTime : undefined);
+      handleTimeframeChange(tf);
+    },
+    [mainChart, allCandles, selectedSymbol, handleTimeframeChange],
   );
 
   // Trading shortcuts & symbol search
@@ -71,16 +116,6 @@ export function TradingPage() {
     isFeedConnected,
     updateTick,
   });
-
-  // Main chart reference & allCandles
-  const [mainChart, setMainChart] = useState<IChartApi | null>(null);
-  useEffect(() => {
-    (window as any).__mainChart = mainChart;
-  }, [mainChart]);
-  const [allCandles, setAllCandles] = useState<any[]>([]);
-  useEffect(() => {
-    setAllCandles([]);
-  }, [selectedSymbol]);
 
   // Right panel selector state
   const { data: aiTraderEnabled } = useAiTraderEnabled();
@@ -124,7 +159,7 @@ export function TradingPage() {
         onSymbolChange={setSelectedSymbol}
         onOpenSymbolSearch={() => openSymbolSearch("switch", "")}
         timeframe={timeframe}
-        onTimeframeChange={handleTimeframeChange}
+        onTimeframeChange={onTimeframeChange}
         activeIndicators={chartControls.activeIndicators}
         onToggleIndicator={chartControls.handleToggleIndicator}
         showIndicatorMenu={chartControls.showIndicatorMenu}

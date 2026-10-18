@@ -32,7 +32,8 @@ export function makeResolveCtx(
   getCandles?: () => readonly ResolveCandle[],
 ): ResolveCtx {
   const candles = getCandles ? getCandles() : undefined;
-  return { chart, series, intervalSec, data: series.data(), candles };
+  const data = candles && candles.length > 0 ? (candles as any) : series.data();
+  return { chart, series, intervalSec, data, candles };
 }
 
 // ── Time ↔ pixel conversion with interpolation/extrapolation ────────────────
@@ -93,7 +94,11 @@ export function timeToLogical(ctx: ResolveCtx, time: number): number | null {
   const idx = lowerBound(data, time);
   const t1 = data[idx - 1]!.time as number;
   const t2 = data[idx]!.time as number;
-  return idx - 1 + (time - t1) / Math.max(t2 - t1, 1);
+  const dt = t2 - t1;
+  if (dt > intervalSec * 1.5) {
+    return idx - 1 + (time - t1) / intervalSec;
+  }
+  return idx - 1 + (time - t1) / Math.max(dt, 1);
 }
 
 /**
@@ -113,5 +118,7 @@ export function xToTime(ctx: ResolveCtx, x: number): number | null {
   // Snap to whole bar offsets so future anchors stay on the bar grid.
   if (logical > lastIdx) return lastTime + Math.round(logical - lastIdx) * intervalSec;
   if (logical < 0) return firstTime + Math.round(logical) * intervalSec;
-  return null;
+  const idx = Math.round(logical);
+  if (idx >= 0 && idx < data.length) return data[idx]!.time as number;
+  return firstTime + Math.round(logical) * intervalSec;
 }

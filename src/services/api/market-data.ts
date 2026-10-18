@@ -77,9 +77,11 @@ export const marketdataApi = {
     timeframe: string,
     limit?: number,
     range?: { fromMs: number; toMs: number },
+    targetTimeSec?: number,
   ) => {
     const payload: Record<string, number | string> = { timeframe };
     if (limit != null) payload.limit = limit;
+    if (targetTimeSec != null) payload.targetTime = targetTimeSec;
     if (range) {
       payload.from = range.fromMs;
       payload.to = range.toMs;
@@ -98,9 +100,11 @@ export const marketdataApi = {
     timeframe: string,
     limit?: number,
     range?: { fromMs: number; toMs: number },
+    targetTimeSec?: number,
   ): Promise<MarketDataCandlesPayload> => {
     const payload: Record<string, number | string> = { timeframe };
     if (limit != null) payload.limit = limit;
+    if (targetTimeSec != null) payload.targetTime = targetTimeSec;
     if (range) {
       payload.from = range.fromMs;
       payload.to = range.toMs;
