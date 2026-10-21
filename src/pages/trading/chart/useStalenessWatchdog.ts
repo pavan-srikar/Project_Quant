@@ -2,7 +2,7 @@ import type { useQueryClient } from "@tanstack/react-query";
 import type { CandlestickData, Time } from "lightweight-charts";
 import { useEffect } from "react";
 import { TF_INTERVAL_MS, type Timeframe } from "../constants.ts";
-import { requestGapRefetch } from "./realtimeFeed.ts";
+import { isSeriesAtLiveEdge, requestGapRefetch } from "./realtimeFeed.ts";
 
 export function useStalenessWatchdog(
   isReplaying: boolean | undefined,
@@ -17,8 +17,9 @@ export function useStalenessWatchdog(
     const intervalSec = (TF_INTERVAL_MS[timeframe] ?? 60_000) / 1000;
     const id = setInterval(() => {
       if (!lastCandleRef.current) return;
-      const staleSec =
-        Date.now() / 1000 - (lastCandleRef.current.time as number);
+      const lastBarSec = lastCandleRef.current.time as number;
+      if (!isSeriesAtLiveEdge(lastBarSec, timeframe)) return;
+      const staleSec = Date.now() / 1000 - lastBarSec;
       if (staleSec < intervalSec * 2) return;
       requestGapRefetch(
         lastGapRefetchAtRef,

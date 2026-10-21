@@ -116,16 +116,25 @@ export function useIndicatorChart(
     const onEnd = () => {
       isSubInteractingRef.current = false;
     };
+    let wheelTimer: ReturnType<typeof setTimeout> | null = null;
+    const onWheel = () => {
+      isSubInteractingRef.current = true;
+      if (wheelTimer) clearTimeout(wheelTimer);
+      wheelTimer = setTimeout(() => {
+        isSubInteractingRef.current = false;
+      }, 1500);
+    };
     container.addEventListener("pointerdown", onStart, { passive: true });
     window.addEventListener("pointerup", onEnd, { passive: true });
     window.addEventListener("pointercancel", onEnd, { passive: true });
-    container.addEventListener("wheel", onStart, { passive: true });
+    container.addEventListener("wheel", onWheel, { passive: true });
 
     return () => {
+      if (wheelTimer) clearTimeout(wheelTimer);
       container.removeEventListener("pointerdown", onStart);
       window.removeEventListener("pointerup", onEnd);
       window.removeEventListener("pointercancel", onEnd);
-      container.removeEventListener("wheel", onStart);
+      container.removeEventListener("wheel", onWheel);
       ro.disconnect();
       try {
         chart.remove();

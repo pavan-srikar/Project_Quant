@@ -153,11 +153,7 @@ export function useRealtimeEffects(params: RealtimeEffectsParams) {
         };
       }
       if (pendingHistoricalTargetRef) {
-        pendingHistoricalTargetRef.current = {
-          centerTime: anchor.centerTime,
-          barCount: 80,
-          targetSymbol: selectedSymbol,
-        };
+        pendingHistoricalTargetRef.current = null;
       }
       if (isScrolledBackRef) isScrolledBackRef.current = true;
     } else if (target) {
@@ -165,6 +161,9 @@ export function useRealtimeEffects(params: RealtimeEffectsParams) {
         chartRef.current, chartData, target.centerTime, target.barCount,
         chartPrefs.autoScale, saved ? { from: saved.from, to: saved.to } : null,
       );
+      if (pendingHistoricalTargetRef) {
+        pendingHistoricalTargetRef.current = null;
+      }
     } else {
       frameLatestCandles(chartRef.current, chartData.length, chartPrefs.autoScale);
     }

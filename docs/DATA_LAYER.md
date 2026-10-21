@@ -8,6 +8,11 @@ This document details the market data pipeline, caching mechanisms, WebSocket br
 
 ```
 src/services/
+├── market-data/                # Unified Market Data Subsystem (<220 lines each)
+│   ├── index.ts                # Central barrel export
+│   ├── types.ts                # Market data mode, query, and metadata interfaces
+│   ├── binanceClient.ts        # Direct Binance v3 REST client with deduplication & offline fallback
+│   └── candleRepository.ts     # Single Source of Truth for candles with contiguity checks
 ├── queries/                    # TanStack React Query hooks (<220 lines each)
 │   ├── keys.ts                 # Deterministic query key factories
 │   ├── market.ts               # useCandles, useTicker, useOrderBook
@@ -17,8 +22,8 @@ src/services/
 │   ├── analytics.ts            # Performance analytics and win-rate queries
 │   ├── features.ts             # Feature flags and terminal preferences
 │   └── botAndNotifications.ts  # Trading bot status and alert notifications
-├── demo/binance/               # Binance REST & WebSocket client
-│   ├── klines.ts               # Fetches historical OHLCV klines from Binance API
+├── demo/binance/               # Binance REST facade & ticker storage
+│   ├── klines.ts               # Fetches historical OHLCV klines
 │   ├── tickers.ts              # Fetches 24h ticker price change and volumes
 │   ├── priceStorage.ts         # In-memory and localStorage cache for klines
 │   └── symbolMapping.ts        # Maps standard pairs (BTCUSD -> BTCUSDT)
@@ -84,3 +89,37 @@ export const queryKeys = {
 ```
 - `placeholderData: keepPreviousData`: Preserves existing chart candles when expanding history from 400 to 10,000 bars, eliminating flash-of-empty-content.
 - `staleTime: 30_000`: Historical candle data is cached for 30 seconds before triggering background refetch.
+
+---
+
+## 5. Unified Candle Repository & Contiguity Invariant (`src/services/market-data/`)
+
+The `CandleRepository` is the terminal's Single Source of Truth for candlestick series. It enforces strict invariants to prevent data corruption and charting anomalies:
+
+1. **Request Deduplication**: `binanceClient.ts` maintains an in-flight promise map (`inflightRequests`) keyed by `${symbol}:${interval}:${fromMs}:${toMs}`. Concurrent calls across components collapse into a single network fetch.
+2. **Strict Contiguity Check (`areCandlesConnecting`)**: Two candle chunks are only stitched if the gap between them does not exceed 4 intervals or 4 calendar days (accounting for weekend forex closures). If disconnected, the repository replaces the current series with the requested chunk instead of creating Frankenstein charts (e.g., February candles placed directly next to October candles).
+3. **Monotonic Timestamps**: Any candle array loaded into memory is validated for strict monotonic order (`t[i] > t[i-1]`). Duplicate timestamps are merged or discarded.
+4. **Targeted Historical Windows (`loadHistoricalWindow`)**: When navigating to a specific historical date/timestamp, the repository fetches a centered window dynamically sized to cover the entire anchor time range plus buffer, providing instant navigation without loading millions of bars.
+5. **Bidirectional Range Fetching (`fetchNewer` & `fetchHistoricalChunk`)**: Supports continuous scrolling both backward (into deeper history) and forward (towards newer dates and the live edge).
+
+---
+
+## 6. Viewport Synchronization Across Timeframes (`useChartViewportController.ts`)
+
+TradingView never calculates bar index offsets across resolutions because bar counts differ drastically between timeframes (1 day = 1 bar in 1d, 6 bars in 4h, 48 bars in 30m).
+
+Instead, the terminal uses **calendar-time viewport synchronization**:
+- **Time Anchor**: The controller tracks the visible center timestamp ($T_{center} = \frac{T_{from} + T_{to}}{2}$) and visible duration.
+- **Timeframe Transition**: When switching timeframes (e.g. 1h to 4h or 30m):
+  1. If the user is at the live edge (`logicalRange.to >= totalBars - 3`), the chart remains locked to the live edge with right margin.
+  2. If the user is inspecting historical data (e.g. July 2025), the controller requests the historical window around $T_{center}$ for the new timeframe, centers the viewport on $T_{center}$, and auto-fits the vertical price scale to the candles visible in that calendar window.
+  3. This completely prevents jumping to the live edge, jumping to empty price space (e.g. \$150k when price is at \$67k), or auto-scrolling backwards.
+
+---
+
+## 7. Realtime Feed & Live Edge Isolation (`realtimeFeed.ts`)
+
+Incoming live WebSocket ticks and 1s polling updates are isolated from historical charts via `isSeriesAtLiveEdge`:
+- If the chart series ends at a historical date (e.g. several months or weeks ago), incoming live ticks **do not** append or mutate historical bars.
+- Bid/ask price lines and badges continue updating in real-time, but the historical candle series remains pure with zero artificial "jump" candles.
+- Once the user scrolls forward to the present day, live candle formation automatically resumes seamlessly.

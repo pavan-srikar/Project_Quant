@@ -69,7 +69,7 @@ export function frameHistoricalViewport(
     }
   }
 
-  const count = targetBarCount && targetBarCount > 10 ? targetBarCount : 80;
+  const count = targetBarCount && targetBarCount > 10 ? Math.min(targetBarCount, 150) : 80;
   const centerIdx = findClosestCandleIndex(data, targetTime);
   const halfBars = Math.round(count / 2);
   const from = Math.max(0, centerIdx - halfBars);

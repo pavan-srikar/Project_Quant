@@ -13,7 +13,7 @@ When a task or bug fix targets a specific subsystem, read its dedicated document
 | **Drawing Tools & Primitives** | [docs/DRAWINGS_AND_PLUGINS.md](./DRAWINGS_AND_PLUGINS.md) | `src/lib/chart-plugins/drawing-tools/` |
 | **Technical Indicators** | [docs/INDICATORS.md](./INDICATORS.md) | `src/lib/indicators/`, `src/pages/trading/bottom-indicators/` |
 | **Paper Trading & Orders** | [docs/TRADING_ENGINE.md](./TRADING_ENGINE.md) | `src/services/demo/engine/`, `src/pages/trading/order-panel/` |
-| **Market Data & Feeds** | [docs/DATA_LAYER.md](./DATA_LAYER.md) | `src/services/demo/binance/`, `src/components/market-data-bridge/`, `src/services/queries/` |
+| **Market Data & Feeds** | [docs/DATA_LAYER.md](./DATA_LAYER.md) | `src/services/market-data/`, `src/services/demo/binance/`, `src/components/market-data-bridge/`, `src/services/queries/` |
 | **Layout, Theme & Mobile** | [docs/UI_AND_STYLING.md](./UI_AND_STYLING.md) | `src/pages/trading-page/`, `src/components/mobile-trading/`, `src/styles/` |
 | **Historical Replay** | [docs/REPLAY_SYSTEM.md](./REPLAY_SYSTEM.md) | `src/pages/trading/useReplay*.ts`, `ReplayHUD.tsx`, `ReplayScrubber.tsx` |
 | **Watchlist & Search** | [docs/WATCHLIST_AND_SEARCH.md](./WATCHLIST_AND_SEARCH.md) | `src/pages/trading/watchlist/`, `src/components/symbol-search/` |
@@ -224,7 +224,7 @@ Every file in `src/` is strictly under 300 lines with a single, clear responsibi
 - `useTradingLayoutResize.ts` — Hook managing draggable splitter heights and responsive widths.
 - `useTradingJournal.ts` — Hook querying and mutating trade journal entries.
 - `useTradingShortcuts.ts` — Hook registering global terminal keyboard shortcuts.
-- `useCandleDepthLoader.ts` — Hook progressively loading deep historical candles in background.
+- `useChartViewportController.ts` — Single source of truth for viewport framing, calendar-time preservation across timeframe switches, and seamless historical candle window fetching.
 
 #### Trading Terminal Panels (`src/pages/trading/`)
 - `src/pages/trading/constants.ts` — Central constants (timeframes, intervals, default colors, tool lists).
@@ -251,7 +251,7 @@ Every file in `src/` is strictly under 300 lines with a single, clear responsibi
 - `chartSeriesInit.ts` — Initializes candlestick series, volume histogram, and price lines.
 - `chartFraming.ts` — Calculates logical range framing recent candles with right margin.
 - `chartPluginManager.ts` — Manages lifecycle of attached primitives (delta tooltip, sessions, drawings).
-- `chartHistoryLoader.ts` — Detects left-scroll edge and triggers historical candle pagination.
+- `chartHistoryLoader.ts` — Bidirectional history loader: detects left-scroll edge for older pagination and right-scroll edge for newer forward pagination towards live edge.
 - `chartWheelHandler.ts` — Intercepts wheel zoom events to prevent sub-pixel bar collapse.
 - `chartOverlays.ts` — Configures overlay indicators (SMA, EMA, VWAP, Bollinger Bands).
 - `ChartOverlaysContainer.tsx` — DOM container rendering floating legends, countdown timers, and badges.
@@ -379,6 +379,12 @@ Every file in `src/` is strictly under 300 lines with a single, clear responsibi
 - `src/services/toast.ts` — Lightweight notification toast manager for order execution alerts.
 - `src/services/store.tsx` — Barrel facade re-exporting all Zustand stores.
 - `src/services/queries.ts` — Barrel facade re-exporting TanStack React Query hooks and keys.
+
+#### Unified Market Data Subsystem (`src/services/market-data/`)
+- `index.ts` — Central barrel exports for the market data layer.
+- `types.ts` — Type definitions for market data mode, queries, metadata, and historical window parameters.
+- `binanceClient.ts` — High-performance Binance REST v3 kline client with request deduplication, paged multi-batch fetching, and offline fallback.
+- `candleRepository.ts` — Enterprise-grade Single Source of Truth for candlestick series with strict contiguity checks, monotonic timestamps, bidirectional range fetching (fetchNewer / fetchRange), zero Frankenstein merging, and decoupled price update subscriptions.
 
 #### API Endpoints (`src/services/api/`)
 - `request.ts` — Core HTTP request client wrapper with error normalization.

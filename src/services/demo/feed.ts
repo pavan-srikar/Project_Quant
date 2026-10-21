@@ -1,8 +1,8 @@
 import { fetchSinglePrice, getKnownPrice, onTickersUpdated } from "./binance.ts";
 import { publish } from "./bus.ts";
-import { getSeedPrice } from "./candles.ts";
 import { mark } from "./engine.ts";
 import { DEMO_SYMBOLS } from "./instruments.ts";
+import { registerPriceUpdateListener } from "../market-data/index.ts";
 
 /**
  * Demo market-data feed.
@@ -24,7 +24,7 @@ let cursors: SymbolCursor[] = [];
 
 function buildCursors(): SymbolCursor[] {
   return DEMO_SYMBOLS.map((s) => {
-    const seed = getKnownPrice(s.name) ?? getSeedPrice(s.name);
+    const seed = getKnownPrice(s.name) ?? 0;
     const tickSize = s.tickSize ?? 0.01;
     const spread = Math.max(tickSize, (seed > 0 ? seed : 1) * 0.0001);
     const cursor: SymbolCursor = {
@@ -44,7 +44,7 @@ function buildCursors(): SymbolCursor[] {
 
 function emitTick(cursor: SymbolCursor): void {
   if (cursor.currentPrice <= 0) {
-    const known = getKnownPrice(cursor.symbol) ?? getSeedPrice(cursor.symbol);
+    const known = getKnownPrice(cursor.symbol);
     if (known && known > 0) {
       cursor.currentPrice = known;
       cursor.spread = Math.max(cursor.tickSize, known * 0.0001);
@@ -110,10 +110,7 @@ onTickersUpdated((tickers) => {
 
 export function registerFeedSymbol(symbolName: string): void {
   const s = DEMO_SYMBOLS.find((item) => item.name === symbolName);
-  let seed = getKnownPrice(symbolName);
-  if (!seed || seed <= 0) {
-    seed = getSeedPrice(symbolName);
-  }
+  const seed = getKnownPrice(symbolName);
   if (seed && seed > 0) {
     updateFeedPrice(symbolName, seed, s?.tickSize);
   } else {
@@ -124,6 +121,10 @@ export function registerFeedSymbol(symbolName: string): void {
     });
   }
 }
+
+registerPriceUpdateListener((symbol, price) => {
+  updateFeedPrice(symbol, price);
+});
 
 export function startDemoFeed(): void {
   if (timer) return;

@@ -89,12 +89,73 @@ export function fetchOlderRange(
     });
 }
 
+export function getSeriesNewestMs(
+  series: ISeriesApi<"Candlestick">,
+  getCandles?: () => readonly any[],
+): number {
+  if (getCandles) {
+    const list = getCandles();
+    if (list.length > 0 && list[list.length - 1]) {
+      const t = Number(list[list.length - 1].time ?? list[list.length - 1].timestamp);
+      if (t > 0) return t < 1_000_000_000_000 ? t * 1000 : t;
+    }
+  }
+  const data = series.data();
+  return data.length === 0 ? 0 : (data[data.length - 1]!.time as number) * 1_000;
+}
+
+export function isLoadForwardEligible(
+  state: LoadMoreState,
+  series: ISeriesApi<"Candlestick">,
+  range: LogicalRange,
+  timeframe: string,
+  getCandles?: () => readonly any[],
+  hasUserPannedOrZoomedRef?: { current: boolean },
+  isUserInteractingRef?: { current: boolean },
+): boolean {
+  if (hasUserPannedOrZoomedRef && !hasUserPannedOrZoomedRef.current) return false;
+  if (isUserInteractingRef && !isUserInteractingRef.current) return false;
+  if (state.loadingForward) return false;
+  const barsInfo = series.barsInLogicalRange(range);
+  if ((barsInfo?.barsAfter ?? Number.POSITIVE_INFINITY) > LOAD_MORE_THRESHOLD) {
+    return false;
+  }
+  const newestMs = getSeriesNewestMs(series, getCandles);
+  if (newestMs === 0) return false;
+  const nowMs = Date.now();
+  const intervalMs = TF_INTERVAL_MS[timeframe as Timeframe] ?? 60_000;
+  return (nowMs - newestMs) > intervalMs * 3;
+}
+
+export function fetchNewerRange(
+  symbol: string,
+  timeframe: string,
+  fromMs: number,
+  state: LoadMoreState,
+  onLoaded: (bars: Candle[], isForward?: boolean) => void,
+): void {
+  const windowMs =
+    LOAD_MORE_WINDOW * (TF_INTERVAL_MS[timeframe as Timeframe] ?? 60_000);
+  const toMs = Math.min(Date.now(), fromMs + windowMs);
+  state.loadingForward = true;
+  api
+    .getCandles(symbol, timeframe, undefined, { fromMs, toMs })
+    .then((bars) => {
+      if (bars.length > 0) {
+        onLoaded(bars as Candle[], true);
+      }
+    })
+    .finally(() => {
+      state.loadingForward = false;
+    });
+}
+
 export function makeHistoryLoader(
   symbol: string,
   timeframeRef: { current: string },
   seriesRef: { current: ISeriesApi<"Candlestick"> | null },
   stateRef: { current: LoadMoreState },
-  onLoaded: (bars: Candle[]) => void,
+  onLoaded: (bars: Candle[], isForward?: boolean) => void,
   getCandles?: () => readonly any[],
   hasUserPannedOrZoomedRef?: { current: boolean },
   isChangingTfRef?: { current: boolean },
@@ -109,18 +170,31 @@ export function makeHistoryLoader(
     const now = Date.now();
     if (now - lastFetchTs < 500) return;
     const state = stateRef.current;
-    if (!isLoadMoreEligible(state, series, range, getCandles, hasUserPannedOrZoomedRef, isUserInteractingRef)) return;
-    const toMs =
-      state.fetchFromMs > 0 ? state.fetchFromMs : getSeriesOldestMs(series, getCandles);
-    if (toMs === 0) return;
     const reqTf = timeframeRef.current;
-    lastFetchTs = now;
-    state.loading = true;
-    state.lastFetchedBeforeMs = toMs;
-    state.fetchFromMs = 0;
-    fetchOlderRange(symbol, reqTf, toMs, state, (bars) => {
-      if (timeframeRef.current !== reqTf || isChangingTfRef?.current) return;
-      onLoaded(bars);
-    });
+
+    if (isLoadMoreEligible(state, series, range, getCandles, hasUserPannedOrZoomedRef, isUserInteractingRef)) {
+      const toMs =
+        state.fetchFromMs > 0 ? state.fetchFromMs : getSeriesOldestMs(series, getCandles);
+      if (toMs === 0) return;
+      lastFetchTs = now;
+      state.loading = true;
+      state.lastFetchedBeforeMs = toMs;
+      state.fetchFromMs = 0;
+      fetchOlderRange(symbol, reqTf, toMs, state, (bars) => {
+        if (timeframeRef.current !== reqTf || isChangingTfRef?.current) return;
+        onLoaded(bars, false);
+      });
+      return;
+    }
+
+    if (isLoadForwardEligible(state, series, range, reqTf, getCandles, hasUserPannedOrZoomedRef, isUserInteractingRef)) {
+      const fromMs = getSeriesNewestMs(series, getCandles);
+      if (fromMs === 0) return;
+      lastFetchTs = now;
+      fetchNewerRange(symbol, reqTf, fromMs, state, (bars) => {
+        if (timeframeRef.current !== reqTf || isChangingTfRef?.current) return;
+        onLoaded(bars, true);
+      });
+    }
   };
 }

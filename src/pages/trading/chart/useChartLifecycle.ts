@@ -100,9 +100,8 @@ export function useChartLifecycle(params: ChartLifecycleParams) {
       timeframeRef,
       candleSeriesRef,
       loadMoreRef,
-      (bars) => {
+      (bars, isForward = false) => {
         if (historyLoadCancelled || bars.length === 0 || isChangingTfRef?.current) return;
-        const currentRange = chart.timeScale().getVisibleLogicalRange();
         setHistoricalExtra((prev) => {
           const map = new Map<number, any>();
           for (const b of bars) map.set(b.time, b);
@@ -111,19 +110,22 @@ export function useChartLifecycle(params: ChartLifecycleParams) {
           }
           return Array.from(map.values()).sort((a, b) => a.time - b.time);
         });
-        if (currentRange) {
-          isApplyingHistoryRef.current = true;
-          requestAnimationFrame(() => {
-            try {
-              chart.timeScale().setVisibleLogicalRange({
-                from: currentRange.from + bars.length,
-                to: currentRange.to + bars.length,
-              });
-            } catch {}
+        if (!isForward) {
+          const currentRange = chart.timeScale().getVisibleLogicalRange();
+          if (currentRange) {
+            isApplyingHistoryRef.current = true;
             requestAnimationFrame(() => {
-              isApplyingHistoryRef.current = false;
+              try {
+                chart.timeScale().setVisibleLogicalRange({
+                  from: currentRange.from + bars.length,
+                  to: currentRange.to + bars.length,
+                });
+              } catch {}
+              requestAnimationFrame(() => {
+                isApplyingHistoryRef.current = false;
+              });
             });
-          });
+          }
         }
       },
       () => allCandlesRef.current,
@@ -150,9 +152,6 @@ export function useChartLifecycle(params: ChartLifecycleParams) {
                 centerTime,
                 barCount,
               };
-              if (pendingHistoricalTargetRef) {
-                pendingHistoricalTargetRef.current = { centerTime, barCount, targetSymbol: selectedSymbol };
-              }
             }
           } catch {}
         } else if (hasUserPannedOrZoomedRef.current && range.to >= totalBars - 2) {

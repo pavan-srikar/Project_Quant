@@ -71,6 +71,7 @@ export interface LoadMoreState {
   lastFetchedBeforeMs: number;
   fetchFromMs: number;
   emptyFetchCount?: number;
+  loadingForward?: boolean;
 }
 
 export interface PluginBuildCtx {

@@ -42,6 +42,13 @@ export function intervalSecOf(tf: Timeframe): number {
   return (TF_INTERVAL_MS[tf] ?? 60_000) / 1000;
 }
 
+export function isSeriesAtLiveEdge(lastBarTimeSec: number, timeframe: Timeframe): boolean {
+  if (!lastBarTimeSec || lastBarTimeSec <= 0) return false;
+  const nowSec = Math.floor(Date.now() / 1000);
+  const intervalSec = intervalSecOf(timeframe);
+  return (nowSec - lastBarTimeSec) <= Math.max(intervalSec * 3, 86400 * 4);
+}
+
 export function paintServerVolume(
   live: LiveCandleData,
   barTime: Time,
@@ -63,6 +70,8 @@ export function paintServerVolume(
 
 export function applyServerCandle(live: LiveCandleData, ctx: RtCtx): void {
   if (ctx.lastLoadKey.current !== `${ctx.symbol}:${ctx.timeframe}`) return;
+  const lastBarSec = (ctx.lastCandle.current?.time as number) ?? 0;
+  if (!isSeriesAtLiveEdge(lastBarSec, ctx.timeframe)) return;
   const ts = toUnixSeconds(live.timestamp);
   if (Number.isNaN(ts) || ts <= 0 || !ctx.lastCandle.current) return;
   if (
@@ -159,6 +168,8 @@ export function applyTick(tick: TickData, ctx: RtCtx): void {
   if (ctx.liveCandleTs.current && tickMs <= ctx.liveCandleTs.current) return;
   const prev = ctx.lastCandle.current;
   if (!prev) return;
+  const lastBarSec = prev.time as number;
+  if (!isSeriesAtLiveEdge(lastBarSec, ctx.timeframe)) return;
   const mid = (tick.bid + tick.ask) / 2;
   if (!Number.isFinite(mid) || mid <= 0) return;
 
@@ -218,9 +229,10 @@ export function replayBufferedLive(
   ctx: RtCtx,
 ): void {
   if (!buffered) return;
-  const liveTs = toUnixSeconds(buffered.timestamp);
   const lastHistBarSec =
     (chartData[chartData.length - 1]?.time as number) ?? 0;
+  if (!isSeriesAtLiveEdge(lastHistBarSec, ctx.timeframe)) return;
+  const liveTs = toUnixSeconds(buffered.timestamp);
   if (Number.isNaN(liveTs) || liveTs <= 0 || liveTs < lastHistBarSec) return;
   const liveBar = liveBarFrom(buffered);
   if (!liveBar) return;
@@ -238,6 +250,9 @@ export function scheduleStaleRefetch(
   ctx: RtCtx,
 ): (() => void) | undefined {
   const lastBarSec = (chartData[chartData.length - 1]?.time as number) ?? 0;
+  if (!isSeriesAtLiveEdge(lastBarSec, ctx.timeframe)) {
+    return undefined;
+  }
   const nowSec = Math.floor(Date.now() / 1000);
   if (
     lastBarSec <= 0 ||
