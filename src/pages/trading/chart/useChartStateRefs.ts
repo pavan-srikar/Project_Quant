@@ -8,6 +8,8 @@ import type {
 } from "lightweight-charts";
 import { useEffect, useRef, useState } from "react";
 import type { Timeframe } from "../constants.ts";
+import { useTradingStore } from "../../../services/store.tsx";
+import { getChartPriceRange, getChartTimeScaleState, type ChartTimeScaleState } from "./chartFraming.ts";
 import type {
   LiveCandleData,
   LoadMoreState,
@@ -64,6 +66,8 @@ export function useChartStateRefs(selectedSymbol: string, timeframe: Timeframe) 
   const prevTfRef = useRef(timeframe);
   const needsTfReframeRef = useRef(false);
   const isChangingTfRef = useRef(false);
+  const preservedPriceRangeRef = useRef<{ symbol: string; min: number; max: number } | null>(null);
+  const preservedTimeScaleRef = useRef<{ symbol: string; state: ChartTimeScaleState } | null>(null);
 
   // Reset historical extension on symbol/tf change
   useEffect(() => {
@@ -74,12 +78,26 @@ export function useChartStateRefs(selectedSymbol: string, timeframe: Timeframe) 
       lastVisibleTimeRangeRef.current = null;
       pendingHistoricalTargetRef.current = null;
       initialLoadCompleteRef.current = false;
+      preservedPriceRangeRef.current = null;
+      preservedTimeScaleRef.current = null;
     }
     if (prevTfRef.current !== timeframe) {
       prevTfRef.current = timeframe;
       needsTfReframeRef.current = true;
       hasUserPannedOrZoomedRef.current = false;
       isChangingTfRef.current = true;
+      const anchor = useTradingStore.getState().chartViewportAnchor;
+      if (!anchor || anchor.fromTime === 0) {
+        isScrolledBackRef.current = false;
+        lastVisibleTimeRangeRef.current = null;
+        pendingHistoricalTargetRef.current = null;
+      }
+      if (chartRef.current) {
+        const pr = getChartPriceRange(chartRef.current);
+        if (pr) preservedPriceRangeRef.current = { symbol: selectedSymbol, ...pr };
+        const ts = getChartTimeScaleState(chartRef.current);
+        if (ts) preservedTimeScaleRef.current = { symbol: selectedSymbol, state: ts };
+      }
     }
     setHistoricalExtra([]);
     lastRenderedBarCountRef.current = 0;
@@ -127,5 +145,7 @@ export function useChartStateRefs(selectedSymbol: string, timeframe: Timeframe) 
     needsTfReframeRef,
     lastVisibleTimeRangeRef,
     isChangingTfRef,
+    preservedPriceRangeRef,
+    preservedTimeScaleRef,
   };
 }

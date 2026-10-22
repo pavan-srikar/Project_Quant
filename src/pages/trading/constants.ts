@@ -202,6 +202,12 @@ export interface DrawingLine {
   targetPrice?: number;
   /** % of account equity risked — drives size/$ readout (default 1). */
   riskPct?: number;
+  /** Target/profit color override (defaults to #3179f5). */
+  targetColor?: string;
+  /** Stop/loss color override (defaults to #ec407a). */
+  stopColor?: string;
+  /** Middle entry separator line color override (defaults to #787b86). */
+  entryLineColor?: string;
   // ── Price alerts on lines ──
   /** When set, the platform alerts when price crosses this line. */
   alertEnabled?: boolean;

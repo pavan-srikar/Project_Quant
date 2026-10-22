@@ -13,7 +13,7 @@ src/pages/trading/chart/
 ├── chartSeriesInit.ts           # Initializes CandlestickSeries & VolumeHistogram
 ├── chartFraming.ts              # Mathematical framing of latest bars + right margin
 ├── chartPluginManager.ts        # Attaches / detaches custom chart primitives
-├── chartHistoryLoader.ts        # Infinite scroll & left-edge pagination trigger
+├── chartHistoryLoader.ts        # Bidirectional continuous pagination (backward & forward)
 ├── chartWheelHandler.ts         # Wheel zoom handler preventing bar collapse
 ├── chartOverlays.ts             # Manages SMA, EMA, VWAP, Bollinger overlay lines
 ├── ChartOverlaysContainer.tsx   # Floating DOM layer for OHLC legend & countdown
@@ -92,14 +92,82 @@ export function frameLatestCandles(
 }
 ```
 A second pass runs on `requestAnimationFrame` to ensure correct framing after the browser DOM layout pass.
-When switching timeframes on the *same symbol* while scrolled back into history, `useTradingStore.chartViewportTarget` stores the historical target center timestamp and visible bar count. `useCandleDepthLoader` calculates a dedicated `[fromMs, toMs]` window around this center timestamp and requests it directly via `useCandles` (`fetchBinanceKlinesRange`).
-The historical candles for the new timeframe load centered directly on the user's historical position. `frameHistoricalViewport` synchronously sets the logical range and computes the exact `minPrice` and `maxPrice` of the visible slice, preventing flashes to the live edge, vertical scale mismatches (e.g. 150k vs 67k), and auto-crawling cascades.
+When switching timeframes on the *same symbol* (whether viewing live edge candles or historical bars), the visible Y-axis price range (e.g. 56k to 100k set by user drag/adjustment) is preserved using `getChartPriceRange()` and restored via `setChartPriceRange()`. Automatic re-scaling (`autoScale: true`) is avoided so the price range remains consistent regardless of the timeframe switch (4H -> 1H, 4H -> 30m, etc.), matching TradingView behavior.
+When switching timeframes while scrolled back into history, `useTradingStore.chartViewportAnchor` preserves the target center timestamp, visible time bounds, and price range. `frameHistoricalViewport` sets the logical range and applies the preserved price range, preventing vertical jumps, live edge flashes, and scale resets.
+At the live edge (`scrollPosition >= -2`), `useChartViewportController` ensures `fromTime = 0`, bypassing historical queries and framing directly via `frameLatestCandles`. In the background, primary timeframes (`15m`, `1h`, `4h`, `1d`) are prefetched via `prefetchCandles` so switches are instant and cached right from the initial load.
 
 ---
 
-## 5. Infinite Historical Loading (`chartHistoryLoader.ts`)
+## 5. Bidirectional Infinite Historical Loading (`chartHistoryLoader.ts`)
 
-- Monitors `timeScale.subscribeVisibleLogicalRangeChange()`.
-- When `logicalRange.from <= LOAD_MORE_THRESHOLD (20)` AND the user is actively panning/zooming (`hasUserPannedOrZoomedRef.current === true`), fires `fetchOlderRange()`.
-- Automated or programmatic re-framing passes cannot trigger background fetches.
-- Fetches older historical candles and prepends them via `setHistoricalExtra` without moving the user's viewport or triggering re-frame cascades.
+The charting engine implements seamless bidirectional infinite pagination:
+
+1. **Backward Pagination (Older Data)**:
+   - Monitors `timeScale.subscribeVisibleLogicalRangeChange()`.
+   - When `logicalRange.from <= LOAD_MORE_THRESHOLD (20)` AND the user is actively panning/zooming (`hasUserPannedOrZoomedRef.current === true`), fires `fetchOlderRange()`.
+   - Older bars are prepended to the series and logical range is adjusted by the prepended bar count, maintaining the user's visual position.
+
+2. **Forward Pagination (Newer Data / Toward Live Edge)**:
+   - Evaluated by `isLoadForwardEligible(logicalRange, totalBars, newestBarMs)`:
+     - Triggers when `barsAfter <= 25` (scrolling toward the right edge of loaded history).
+     - ONLY triggers if the newest loaded bar is genuinely in the past (`newestBarMs < Date.now() - 2 * intervalMs`).
+   - Calls `fetchNewerRange()`, which requests contiguous subsequent klines via `candleRepository.fetchNewer()`.
+   - Bars are appended to the series via `onLoaded(bars, isForward = true)`. Because forward-loaded bars extend into the right void without shifting existing bar indices, no synthetic offset is applied to `logicalRange`, completely eliminating voids when scrolling or switching timeframes.
+
+---
+
+## 6. Live Edge Isolation & Protection (`realtimeFeed.ts`)
+
+To prevent artificial candle corruption when viewing historical datasets:
+- **Predicate `isSeriesAtLiveEdge(lastBarTimeSec, timeframe)`**: Verifies whether the last bar of the series is within interval tolerance (plus weekend forex allowance) of current UTC time.
+- **Selective Tick Suppression**:
+  - If `!isSeriesAtLiveEdge`, incoming live WebSocket ticks and polling updates **do not** mutate or append to the candlestick series.
+  - Bid/Ask horizontal price lines and header ticker badges continue to reflect real-time live prices.
+  - Stale refetch watchdogs are bypassed for historical datasets, preventing infinite 1.5s React Query refetch loops.
+- Once the user scrolls back to the live edge, real-time candle aggregation and updates resume automatically.
+
+---
+
+## 7. Loop Prevention & Multi-Chart Isolation
+
+1. **Historical Target Single-Consumption**:
+   - `pendingHistoricalTargetRef.current` in `useRealtimeEffects.ts` is cleared (`= null`) immediately upon applying `frameHistoricalViewport`.
+   - Prevents recursive re-framing loops where incoming data triggers `useRealtimeEffects`, which re-frames the target, triggering range changes, and re-fetching data in an endless 500ms cycle.
+2. **Sub-Chart Indicator Interaction Debounce**:
+   - In `useIndicatorChart.ts`, mouse wheel events on sub-chart oscillator panes set `isSubInteractingRef.current = true` with a 1500ms debounce reset.
+   - Prevents sub-chart interactions from permanently latching and causing crosshair jitter or reciprocal range feedback to the main chart.
+
+---
+
+## 8. Viewport Preservation Across Timeframe Switches (`chartFraming.ts` & `useChartViewportController.ts`)
+
+When switching timeframes on the same symbol (e.g. 4H → 1H, 4H → 30m), TradingView-grade viewport consistency is maintained:
+1. **Y-Axis Price Range Preservation**:
+   - `getChartPriceRange(chart)` captures current visible `{ min, max }` from Lightweight Charts' price scale.
+   - `setChartPriceRange(chart, range)` locks `autoScale: false` and sets the exact price range across timeframe transitions.
+2. **Rightmost Candle Locking & Zoom Ratio Preservation**:
+   - `getChartTimeScaleState(chart)` extracts `{ barSpacing, rightOffset, visibleBars, scrollPosition, lastVisibleTime }`.
+   - `frameLatestCandles` and `frameHistoricalViewport` re-apply `barSpacing` (candle pixel width / zoom ratio) and pin the rightmost candle at its exact offset on the screen.
+   - Clamping to artificial bounds (e.g. 80 or 150 bars) is eliminated, faithfully preserving the user's zoom whether zoomed in to a few candles or zoomed out to hundreds of bars.
+3. **Symbol Switch Isolation**:
+   - Preserved anchors and refs are strictly scoped to the active symbol. Switching symbols (e.g. BTC → ETH) clears anchors and triggers standard default framing and auto-scaling.
+4. **Primary Timeframe Background Prefetching**:
+   - `useChartViewportController` prefetches primary intervals (`15m`, `30m`, `1h`, `4h`, `1d`) via `prefetchCandles(queryClient, ...)`.
+   - On the very first timeframe switch, candles are already cached in TanStack Query memory, guaranteeing zero-flash instant transitions.
+5. **High-Timeframe Multiplier-Safe Live Edge Detection**:
+   - On `1d` charts, normal mouse wheel zoom shifts scroll position by -3 to -10 bars without leaving the current market view.
+   - Live edge detection verifies whether the latest bar (`totalBars - 1`) is within the visible viewport bounds or within 30 bars of the right edge, preventing accidental historical anchoring.
+
+---
+
+## 9. Price Scale Wheel Zoom & Boundary Clamping (`chartWheelHandler.ts`)
+
+- **Vertical Price Scale Wheel**:
+  - `handlePriceScaleWheel` intercepts wheel events over the right price scale bar (`~80px` wide).
+  - Calculates logarithmic zoom anchored at the cursor's price coordinate (`p0`), expanding or contracting the vertical price range without affecting time scale.
+- **Horizontal Zoom Boundary Clamping**:
+  - `createChartWheelHandler` intercepts wheel events on the chart container.
+  - When the oldest loaded historical bar is in view (`barsBefore <= 0` or `logicalRange.from <= 0`) and no further historical data exists, zoom-out (`deltaY > 0`) is intercepted and prevented, eliminating blank space drifts.
+
+
+

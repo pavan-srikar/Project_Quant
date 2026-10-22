@@ -133,11 +133,14 @@ describe("Single Bottom Date Bar Configuration", () => {
       return cfg && cfg.pane === "below";
     });
 
-    const whenCollapsed = !true && "indicators" === "indicators" && hasActiveBelowIndicators;
+    const isCollapsed = true;
+    const currentTab: string = "indicators";
+    const whenCollapsed = !isCollapsed && currentTab === "indicators" && hasActiveBelowIndicators;
     expect(whenCollapsed).toBe(false);
 
-    const whenPositionsTab =
-      !false && ("positions" as string) === "indicators" && hasActiveBelowIndicators;
+    const isExpanded = false;
+    const tabName: string = "positions";
+    const whenPositionsTab = !isExpanded && tabName === "indicators" && hasActiveBelowIndicators;
     expect(whenPositionsTab).toBe(false);
   });
 });

@@ -1,24 +1,13 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { ISeriesApi } from "lightweight-charts";
-import {
-  useCallback,
-  useMemo,
-  useState,
-} from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useChartPreferences } from "../../../hooks/useChartPreferences.ts";
-import {
-  CHART_COLORS,
-  mergeChartColors,
-} from "../constants.ts";
+import { CHART_COLORS, mergeChartColors } from "../constants.ts";
 import { DrawingToolRail } from "../DrawingToolRail.tsx";
 import { ChartLegendHeader } from "./ChartLegendHeader.tsx";
 import { ChartPanelDialogs } from "./ChartPanelDialogs.tsx";
 import { DragPriceTooltip } from "./DragPriceTooltip.tsx";
-import type {
-  ChartPanelProps,
-  OhlcvLegend,
-  RtCtx,
-} from "./types.ts";
+import type { ChartPanelProps, OhlcvLegend, RtCtx } from "./types.ts";
 import { useCandlesMerge } from "./useCandlesMerge.ts";
 import { useChartContextMenuActions } from "./useChartContextMenuActions.ts";
 import { useChartIndicatorSettingsState } from "./useChartIndicatorSettingsState.ts";

@@ -80,3 +80,46 @@ This document catalogs non-obvious engineering gotchas, solved bugs, and archite
 
 ### C. Persistent Memory for Active Indicators
 - **Rule**: Never leave active indicators in volatile React state (`useState([])`). Persist active indicators in `ChartPreferences` (`useChartPreferences.ts`) with direct synchronous `localStorage` fallback so page refreshes and browser reloads seamlessly restore both overlay lines and sub-chart oscillators.
+
+---
+
+## 5. Historical Data & Viewport Pagination Lessons
+
+### A. Live-Tick Contamination of Historical Datasets ("Long Ass Candle")
+- **Symptom**: Viewing historical candles (e.g. August at \$78,964) rendered an impossible giant vertical candle jumping to the live Bitcoin price (\$83,316).
+- **Root Cause**: `applyTick` and `applyServerCandle` unconditionally updated `lastCandle.current` with the incoming live tick price without checking if the dataset was at the live edge. Furthermore, the staleness watchdog noticed the last bar was older than 2 intervals and repeatedly invalidated React Query every 1.5s, flooding the network.
+- **Fix**: Guard all candle mutations and stale watchdog refetches with `isSeriesAtLiveEdge(lastBarTimeSec, timeframe)`. If the active dataset is historical, incoming live ticks do not append or mutate bars. Real-time Bid/Ask lines and header badges continue updating without corrupting the historical candlestick series.
+
+### B. Unidirectional Pagination Causing Forward Voids
+- **Symptom**: Scrolling forward on a historical chart or switching timeframes while viewing past data left an empty black void on the right where forward candles would not load.
+- **Root Cause**: `makeHistoryLoader` only listened for left-edge scroll (`barsBefore <= 20`). When viewing past windows, the right edge was treated as a dead end.
+- **Fix**: Added bidirectional loader with `isLoadForwardEligible(logicalRange, totalBars, newestBarMs)` that detects rightward scrolling (`barsAfter <= 25`) on past data and fetches newer slices via `candleRepository.fetchNewer()`. Bars are smoothly appended to the series without synthetic logical range offsets.
+
+### C. Single-Consumption Framing Targets vs. Recursive Scroll Loops
+- **Symptom**: Zooming out on 4h and switching to 30m caused the chart to slowly scroll backwards indefinitely every 500ms.
+- **Root Cause**: `pendingHistoricalTargetRef.current` was never reset to `null` after framing. Each data update or prepended chunk re-executed `useRealtimeEffects`, re-framed the target, and tripped `barsBefore <= 20` again in a loop. Additionally, wheel interactions on sub-charts lacked a timeout, permanently locking `isSubInteractingRef`.
+- **Fix**: 
+  1. Set `pendingHistoricalTargetRef.current = null` immediately upon framing.
+  2. Increase default historical window to 2000 bars centered symmetrically so the initial frame does not land within the 20-bar load threshold.
+  3. Add a 1500ms debounce reset to sub-chart wheel events.
+
+### D. Circular Import Trap Between Zustand and Repository
+- **Symptom**: Importing `useTradingStore` inside `candleRepository.ts` caused a circular bundle dependency: `candleRepository` $\rightarrow$ `useTradingStore` $\rightarrow$ `api.ts` $\rightarrow$ `demo/candles.ts` $\rightarrow$ `candleRepository`, leaving `candleRepository` undefined during test bootstrap.
+- **Fix**: Keep low-level data repositories strictly decoupled from Zustand store modules. Pass state downwards via standalone exported functions (`setRepositoryAnchor`) called by the coordinator hook (`useChartViewportController`).
+
+---
+
+## 6. Viewport Synchronization & Timeframe Transition Gotchas
+
+### A. Lightweight Charts `setVisibleLogicalRange` Overwrites `barSpacing`
+- **Trap**: When attempting to preserve zoom ratio (`barSpacing`), calling `timeScale.setVisibleLogicalRange({ from, to })` internally calculates and overwrites `barSpacing = containerWidth / (to - from)`.
+- **Fix**: Always apply `timeScale.applyOptions({ barSpacing, rightOffset })` **after** setting the logical range, followed by `scrollToPosition`.
+
+### B. High-Timeframe Multiplier Trap (e.g. `1d` $\to$ `30m`)
+- **Trap**: On daily charts (`1d`), each candle spans 86,400s. Standard wheel zooming or slight panning easily shifts `scrollPos` by -3 to -10 bars (just a few days). A rigid threshold like `scrollPos >= -2` treats this normal view as historical, anchoring the chart 40 days in the past. In `30m` candles, 40 days is $\approx 1,920$ bars, causing unexpected network fetches and violent viewport flashes.
+- **Fix**: Verify whether the latest candle index (`totalBars - 1`) is within the visible viewport bounds (`latestBarIdx >= lr.from - 10 && latestBarIdx <= lr.to + 50`) or within 30 bars of the right margin (`scrollPos >= -30 || lr.to >= totalBars - 30`).
+
+### C. Pre-emptive Price Range Lock Before `setData`
+- **Trap**: Calling `series.setData()` immediately triggers Lightweight Charts' internal auto-scaler if `autoScale` is enabled, causing a visible 1-frame price scale jump before post-data effects can run.
+- **Fix**: Lock `chart.priceScale("right").applyOptions({ autoScale: false })` and apply `setChartPriceRange(chart, preservedPriceRange)` *synchronously before* `series.setData()`.
+

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { DrawingToolsManager } from "../lib/chart-plugins/drawing-tools/manager.ts";
+import { renderLivePositionTracker } from "../lib/chart-plugins/drawing-tools/renderers/position-tracker-renderer.ts";
+import { renderPositionBadges } from "../lib/chart-plugins/drawing-tools/renderers/position-renderer.ts";
 import type { DrawingLine } from "../pages/trading/constants.ts";
 
 describe("DrawingToolsManager Placement", () => {
@@ -206,5 +208,56 @@ describe("DrawingToolsManager Placement", () => {
     expect(drawing.type).toBe("vertical");
     // Logical index 20 (200 / 10) maps to candle index 20 -> 1700000000 + 20 * 60
     expect(drawing.time).toBe(1700001200);
+  });
+
+  it("does not render trailing tracker badge, and renders closed info in center badge", () => {
+    const fillTextSpy = vi.fn();
+    const mockScope: any = {
+      context: {
+        save: vi.fn(),
+        restore: vi.fn(),
+        beginPath: vi.fn(),
+        arc: vi.fn(),
+        fill: vi.fn(),
+        stroke: vi.fn(),
+        moveTo: vi.fn(),
+        lineTo: vi.fn(),
+        closePath: vi.fn(),
+        setLineDash: vi.fn(),
+        measureText: () => ({ width: 80 }),
+        fillText: fillTextSpy,
+        roundRect: vi.fn(),
+      },
+      horizontalPixelRatio: 1,
+      verticalPixelRatio: 1,
+      bitmapSize: { width: 800, height: 600 },
+    };
+
+    const entry: any = {
+      d: { id: "p1", type: "position", price: 100, stopPrice: 90, targetPrice: 120, side: "long" },
+      hasTriggered: true,
+      currentPrice: 110,
+      xCurrent: 200,
+      yCurrent: 200,
+      trackingStatus: "CLOSED",
+      isHovered: true,
+      state: "selected",
+    };
+
+    const info: any = {
+      priceFormat: (p: number) => p.toFixed(2),
+    };
+
+    // 1. Tracker itself does NOT render any text badges
+    renderLivePositionTracker(mockScope, entry, info, 100, 300, 250);
+    expect(fillTextSpy).toHaveBeenCalledTimes(0);
+
+    // 2. Center badge renders "Closed: 110.00 [+10.00%]"
+    renderPositionBadges(mockScope, entry, info, 100, 300, 250, 150, 350);
+    const closedTexts = fillTextSpy.mock.calls.filter((call) =>
+      typeof call[0] === "string" && call[0].includes("Closed:"),
+    );
+    expect(closedTexts.length).toBe(1);
+    expect(closedTexts[0]?.[0]).toContain("Closed: 110.00 [+10.00%]");
   });
 });

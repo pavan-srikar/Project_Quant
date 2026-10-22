@@ -94,12 +94,31 @@ Drawing Persisted ──► Broadcast to onAdd callback ──► Save in useCha
 ```
 
 ### Editing Interactions:
-- **Anchor Drag**: Grab any endpoint handle to resize the drawing with live angle snapping (`Shift` for 45°) or OHLC magnet snapping.
+- **Anchor Drag**: Grab any endpoint handle to resize the drawing with live angle snapping (`Shift` for 45°) or OHLC magnet snapping. Position tools feature TradingView-aligned 4-handle control (Target Y, Stop Y, Middle Entry 2D X/Y, and Right Width X).
 - **Body Drag**: Drag the body of any drawing to shift all anchors together in time and price.
 - **Group Drag**: Multi-select drawings (`Shift + Click`) and drag any selected body to translate the entire selection.
 - **Arrow Nudging**: `Arrow keys` nudge selection by 1px (or 10px with `Shift`).
 - **Clipboard**: `Ctrl/Cmd + C` to copy, `Ctrl/Cmd + V` to paste shifted by 3 bars, `Ctrl/Cmd + D` to duplicate.
 - **Settings Dialog**: Double-click or long-press on touch to open `DrawingSettingsDialog.tsx`.
+
+### Position Drawing Tool (Long / Short Tool):
+- **4-Handle Layout**:
+  - `xa, yTarget`: Top/bottom target handle adjusting target price.
+  - `xa, yStop`: Bottom/top stop handle adjusting stop price.
+  - `xa, y1`: Middle entry handle controlling 2D movement (moves both date `time` in X and entry price in Y).
+  - `xb, y1`: Right width handle controlling position duration (`time2`).
+- **Badges & Visual Placement**:
+  - Target badge placed outside target zone; Stop badge placed outside stop zone.
+  - Badges use fixed coordinate bounds and are hidden when scrolled off-screen, preventing edge-clutter.
+  - Center badge displays risk/reward ratio and real-time/closed PnL (`Closed: price [+x%]`).
+  - Badges render only when hovered or selected.
+- **Default Styling & Color Overrides**:
+  - Default target color: `#3179f5` (blue); default stop color: `#ec407a` (red).
+  - Target, stop, and middle separator colors are individually customizable in `DrawingSettingsDialog.tsx`.
+- **Hit Testing**:
+  - Hit-test detection is restricted strictly to the inner bounds of the position zone rectangle (`xa` to `xb`, `top` to `bottom`).
+  - External badges do not capture clicks or hovers, preventing unintentional tool selection during chart navigation.
+
 
 ---
 

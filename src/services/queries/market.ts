@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type QueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import type { MarketDataCandlesPayload } from "../api/market-data";
 import type { Candle, Symbol } from "../schemas";
@@ -96,5 +96,32 @@ export function useMarketDataHealth() {
     queryFn: () => api.getMarketDataHealth(),
     staleTime: 5_000,
     refetchInterval: 5_000,
+  });
+}
+
+export function prefetchCandles(
+  queryClient: QueryClient,
+  symbol: string,
+  timeframe: string,
+  limit: number = 2_000,
+) {
+  return queryClient.prefetchQuery({
+    queryKey: [
+      "candles",
+      symbol,
+      timeframe,
+      limit,
+      0,
+      0,
+    ],
+    queryFn: () =>
+      api.getCandlesWithMeta(
+        symbol,
+        timeframe,
+        limit,
+        undefined,
+        0,
+      ) as unknown as Promise<MarketDataCandlesPayload>,
+    staleTime: 30_000,
   });
 }

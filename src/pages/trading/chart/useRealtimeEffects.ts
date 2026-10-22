@@ -5,7 +5,10 @@ import type { useChartPreferences } from "../../../hooks/useChartPreferences.ts"
 import type { Order, Position, Symbol } from "../../../services/schemas.ts";
 import { useTradingStore } from "../../../services/stores/useTradingStore.ts";
 import type { DrawingLine, Timeframe } from "../constants.ts";
-import { frameHistoricalViewport, frameLatestCandles } from "./chartFraming.ts";
+import {
+  frameHistoricalViewport, frameLatestCandles,
+  getChartPriceRange, setChartPriceRange, type ChartTimeScaleState,
+} from "./chartFraming.ts";
 import { addOrderOverlay, addPositionOverlay, clearPriceLines } from "./chartOverlays.ts";
 import {
   applyBidAskLines, applyServerCandle, applyTick,
@@ -44,6 +47,8 @@ export interface RealtimeEffectsParams {
   isChangingTfRef?: RefObject<boolean>;
   pendingHistoricalTargetRef?: RefObject<{ centerTime: number; barCount: number; targetSymbol: string } | null>;
   lastVisibleTimeRangeRef?: RefObject<{ from: number; to: number; centerTime?: number; barCount?: number } | null>;
+  preservedPriceRangeRef?: RefObject<{ symbol: string; min: number; max: number } | null>;
+  preservedTimeScaleRef?: RefObject<{ symbol: string; state: ChartTimeScaleState } | null>;
   setLegend: Dispatch<SetStateAction<OhlcvLegend | null>>;
   liveCandle?: LiveCandleData;
   tick?: TickData;
@@ -69,7 +74,7 @@ export function useRealtimeEffects(params: RealtimeEffectsParams) {
     lastCandleRef, latestLiveCandleRef, liveCandleTsRef, lastGapRefetchAtRef,
     initialLoadCompleteRef, lastRenderedBarCountRef, hasUserPannedOrZoomedRef,
     isScrolledBackRef, needsTfReframeRef, isChangingTfRef, pendingHistoricalTargetRef,
-    lastVisibleTimeRangeRef, setLegend, liveCandle, tick, drawingsRef,
+    lastVisibleTimeRangeRef, preservedPriceRangeRef, preservedTimeScaleRef, setLegend, liveCandle, tick, drawingsRef,
     pipDigits, isReplaying, queryClient, chartPrefs, priceLineRef,
     slTpLinesRef, positions, orders, colors, symbolInfo,
     replayTradeEvents, setCountdown,
@@ -90,6 +95,22 @@ export function useRealtimeEffects(params: RealtimeEffectsParams) {
       lastLoadKeyRef.current !== loadKey ||
       lastLoadedSeriesRef.current !== series;
 
+    const prevKey = lastLoadKeyRef.current;
+    const isTfChange = Boolean(
+      needsTfReframeRef?.current ||
+      (prevKey && prevKey.startsWith(`${selectedSymbol}:`) && prevKey !== loadKey)
+    );
+
+    if (
+      isTfChange &&
+      (!preservedPriceRangeRef?.current || preservedPriceRangeRef.current.symbol !== selectedSymbol)
+    ) {
+      const pr = getChartPriceRange(chartRef.current);
+      if (pr && preservedPriceRangeRef) {
+        preservedPriceRangeRef.current = { symbol: selectedSymbol, ...pr };
+      }
+    }
+
     // Capture target before setData fires timescale listeners that could clear state
     const saved = lastVisibleTimeRangeRef?.current;
     const target =
@@ -103,31 +124,51 @@ export function useRealtimeEffects(params: RealtimeEffectsParams) {
             }
           : null;
 
-    if (isChangingTfRef) isChangingTfRef.current = true;
-
-    series.setData(chartData);
-    volumeSeriesRef.current?.setData(volumeData);
-    lastCandleRef.current = chartData[chartData.length - 1] ?? null;
-    const prevKey = lastLoadKeyRef.current;
-    lastLoadKeyRef.current = loadKey;
-    lastLoadedSeriesRef.current = series;
-    setLegend(legendFromSeries(chartData, volumeData));
-
     const buffered = latestLiveCandleRef.current;
     const isInitialLoad = !initialLoadCompleteRef.current;
-    const isTfChange = Boolean(
-      needsTfReframeRef?.current ||
-      (prevKey && prevKey.startsWith(`${selectedSymbol}:`) && prevKey !== loadKey)
-    );
     const anchor = useTradingStore.getState().chartViewportAnchor;
     const isAnchorMatch = Boolean(anchor && anchor.symbol === selectedSymbol);
     const shouldReframe = isNewChart || isInitialLoad || isTfChange || isAnchorMatch;
 
-    lastRenderedBarCountRef.current = chartData.length;
-
-    if (chartData.length === 0) {
-      return;
+    const anchorPr = isAnchorMatch ? anchor?.priceRange : null;
+    const refPr = preservedPriceRangeRef?.current?.symbol === selectedSymbol ? preservedPriceRangeRef.current : null;
+    const currentChartPr = isTfChange ? getChartPriceRange(chartRef.current) : null;
+    const preservedPriceRange = isTfChange ? (anchorPr || refPr || currentChartPr || null) : null;
+    if (preservedPriceRange && preservedPriceRangeRef) {
+      preservedPriceRangeRef.current = { symbol: selectedSymbol, ...preservedPriceRange };
     }
+    const anchorTs = isAnchorMatch ? anchor?.timeScaleState : null;
+    const refTs = preservedTimeScaleRef?.current?.symbol === selectedSymbol ? preservedTimeScaleRef.current.state : null;
+    const preservedTimeScale = isTfChange ? (anchorTs || refTs || null) : null;
+
+    if (isChangingTfRef) isChangingTfRef.current = true;
+
+    // Lock price scale to manual BEFORE setting data so Lightweight Charts never auto-scales
+    if (preservedPriceRange && preservedPriceRange.max > preservedPriceRange.min) {
+      try {
+        chartRef.current?.priceScale("right").applyOptions({ autoScale: false });
+        setChartPriceRange(chartRef.current, preservedPriceRange);
+      } catch {}
+    }
+
+    // Pre-apply preserved barSpacing and rightOffset BEFORE setting data
+    const ts = chartRef.current?.timeScale();
+    if (ts && preservedTimeScale && preservedTimeScale.barSpacing > 0) {
+      try {
+        ts.applyOptions({
+          barSpacing: preservedTimeScale.barSpacing,
+          rightOffset: preservedTimeScale.rightOffset ?? 6,
+        });
+      } catch {}
+    }
+
+    series.setData(chartData);
+    volumeSeriesRef.current?.setData(volumeData);
+    lastCandleRef.current = chartData[chartData.length - 1] ?? null;
+    lastLoadKeyRef.current = loadKey;
+    lastLoadedSeriesRef.current = series;
+    setLegend(legendFromSeries(chartData, volumeData));
+    lastRenderedBarCountRef.current = chartData.length;
 
     if (!shouldReframe) {
       if (isChangingTfRef) isChangingTfRef.current = false;
@@ -138,34 +179,39 @@ export function useRealtimeEffects(params: RealtimeEffectsParams) {
     initialLoadCompleteRef.current = true;
     if (needsTfReframeRef) needsTfReframeRef.current = false;
 
-    if (isAnchorMatch && anchor) {
+    const isLiveEdgeAnchor = isAnchorMatch && anchor && anchor.fromTime === 0;
+    if (isAnchorMatch && anchor && anchor.fromTime > 0) {
       frameHistoricalViewport(
-        chartRef.current, chartData, anchor.centerTime, 80,
+        chartRef.current, chartData, anchor.centerTime, anchor.barCount || 80,
         chartPrefs.autoScale, { from: anchor.fromTime, to: anchor.toTime },
+        preservedPriceRange, preservedTimeScale,
       );
       useTradingStore.getState().setChartViewportAnchor(null);
       if (lastVisibleTimeRangeRef) {
         lastVisibleTimeRangeRef.current = {
-          from: anchor.fromTime,
-          to: anchor.toTime,
-          centerTime: anchor.centerTime,
-          barCount: 80,
+          from: anchor.fromTime, to: anchor.toTime,
+          centerTime: anchor.centerTime, barCount: anchor.barCount || 80,
         };
       }
-      if (pendingHistoricalTargetRef) {
-        pendingHistoricalTargetRef.current = null;
-      }
+      if (pendingHistoricalTargetRef) pendingHistoricalTargetRef.current = null;
       if (isScrolledBackRef) isScrolledBackRef.current = true;
-    } else if (target) {
+    } else if (target && !isLiveEdgeAnchor) {
+      if (isAnchorMatch) useTradingStore.getState().setChartViewportAnchor(null);
       frameHistoricalViewport(
         chartRef.current, chartData, target.centerTime, target.barCount,
         chartPrefs.autoScale, saved ? { from: saved.from, to: saved.to } : null,
+        preservedPriceRange, preservedTimeScale,
       );
-      if (pendingHistoricalTargetRef) {
-        pendingHistoricalTargetRef.current = null;
-      }
+      if (pendingHistoricalTargetRef) pendingHistoricalTargetRef.current = null;
     } else {
-      frameLatestCandles(chartRef.current, chartData.length, chartPrefs.autoScale);
+      if (isAnchorMatch) useTradingStore.getState().setChartViewportAnchor(null);
+      if (pendingHistoricalTargetRef) pendingHistoricalTargetRef.current = null;
+      if (lastVisibleTimeRangeRef) lastVisibleTimeRangeRef.current = null;
+      if (isScrolledBackRef) isScrolledBackRef.current = false;
+      frameLatestCandles(
+        chartRef.current, chartData.length, chartPrefs.autoScale,
+        preservedPriceRange, preservedTimeScale,
+      );
     }
     liveCandleTsRef.current = 0;
     replayBufferedLive(buffered, chartData, ctx);
@@ -181,7 +227,7 @@ export function useRealtimeEffects(params: RealtimeEffectsParams) {
     lastCandleRef, latestLiveCandleRef, setLegend, initialLoadCompleteRef,
     lastRenderedBarCountRef, hasUserPannedOrZoomedRef, chartRef, liveCandleTsRef,
     isChangingTfRef, isScrolledBackRef, needsTfReframeRef,
-    pendingHistoricalTargetRef, lastVisibleTimeRangeRef, chartPrefs.autoScale,
+    pendingHistoricalTargetRef, lastVisibleTimeRangeRef, preservedPriceRangeRef, preservedTimeScaleRef, chartPrefs.autoScale,
   ]);
 
   // 3. Real-time candle updates: server-aggregated CandleUpdate
@@ -237,16 +283,8 @@ export function useRealtimeEffects(params: RealtimeEffectsParams) {
       addOrderOverlay(series, ord, selectedSymbol, colors.orderLine, priceLineRef.current);
     }
   }, [
-    positions,
-    orders,
-    selectedSymbol,
-    chartData,
-    symbolInfo,
-    colors,
-    chartPrefs.overlayPositionsOnChart,
-    candleSeriesRef,
-    priceLineRef,
-    slTpLinesRef,
+    positions, orders, selectedSymbol, chartData, symbolInfo, colors,
+    chartPrefs.overlayPositionsOnChart, candleSeriesRef, priceLineRef, slTpLinesRef,
   ]);
 
   // 9. Replay trade event markers

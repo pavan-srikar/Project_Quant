@@ -9,6 +9,9 @@ import {
   findClosestCandleIndex,
   frameHistoricalViewport,
   frameLatestCandles,
+  getChartPriceRange,
+  getChartTimeScaleState,
+  setChartPriceRange,
 } from "../pages/trading/chart/chartFraming.ts";
 import { getChartPreferencesFromStorage } from "../hooks/useChartPreferences.ts";
 import { areCandlesConnecting, hasDiscontinuity } from "../services/demo/candles.ts";
@@ -102,6 +105,230 @@ describe("Chart Performance & History Preserving Tests", () => {
     frameLatestCandles(mockChart, 100, false);
     expect(setVisibleLogicalRangeSpy).toHaveBeenCalledWith({ from: 20, to: 108 });
     expect(applyOptionsSpy).toHaveBeenCalledWith({ autoScale: true });
+  });
+
+  it("getChartPriceRange returns null on empty/mock chart and returns range when present", () => {
+    expect(getChartPriceRange(null)).toBeNull();
+    expect(getChartPriceRange({} as any)).toBeNull();
+
+    const mockPriceRange = {
+      _internal_isEmpty: () => false,
+      _internal_minValue: () => 56000,
+      _internal_maxValue: () => 100000,
+    };
+    const mockChart: any = {
+      _private__chartWidget: {
+        _internal_model: () => ({
+          _internal_panes: () => [
+            {
+              _internal_rightPriceScale: () => ({
+                _internal_priceRange: () => mockPriceRange,
+              }),
+            },
+          ],
+        }),
+      },
+    };
+    expect(getChartPriceRange(mockChart)).toEqual({ min: 56000, max: 100000 });
+  });
+
+  it("setChartPriceRange sets price range and disables autoScale", () => {
+    const setModeSpy = vi.fn();
+    const setPriceRangeSpy = vi.fn();
+    const applyOptionsSpy = vi.fn();
+    const updateSourcesSpy = vi.fn();
+    const lightUpdateSpy = vi.fn();
+
+    const mockPriceRange = {
+      _internal_clone: () => ({ _private__minValue: 0, _private__maxValue: 0 }),
+    };
+    const mockChart: any = {
+      _private__chartWidget: {
+        _internal_model: () => ({
+          _internal_panes: () => [
+            {
+              _internal_rightPriceScale: () => ({
+                _internal_priceRange: () => mockPriceRange,
+                _internal_setMode: setModeSpy,
+                _internal_setPriceRange: setPriceRangeSpy,
+              }),
+              _internal_updateAllSources: updateSourcesSpy,
+            },
+          ],
+          _internal_lightUpdate: lightUpdateSpy,
+        }),
+      },
+      priceScale: () => ({ applyOptions: applyOptionsSpy }),
+    };
+
+    const result = setChartPriceRange(mockChart, { min: 56000, max: 100000 });
+    expect(result).toBe(true);
+    expect(setModeSpy).toHaveBeenCalledWith({ _internal_autoScale: false });
+    expect(setPriceRangeSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ _private__minValue: 56000, _private__maxValue: 100000 }),
+    );
+    expect(applyOptionsSpy).toHaveBeenCalledWith({ autoScale: false });
+  });
+
+  it("frameHistoricalViewport preserves price range when preservedPriceRange is provided", () => {
+    const applyOptionsSpy = vi.fn();
+    const setVisibleLogicalRangeSpy = vi.fn();
+    const setModeSpy = vi.fn();
+    const setPriceRangeSpy = vi.fn();
+
+    const mockPriceRange = {
+      _internal_clone: () => ({ _private__minValue: 0, _private__maxValue: 0 }),
+    };
+    const mockChart: any = {
+      timeScale: () => ({ setVisibleLogicalRange: setVisibleLogicalRangeSpy }),
+      priceScale: () => ({ applyOptions: applyOptionsSpy }),
+      _private__chartWidget: {
+        _internal_model: () => ({
+          _internal_panes: () => [
+            {
+              _internal_rightPriceScale: () => ({
+                _internal_priceRange: () => mockPriceRange,
+                _internal_setMode: setModeSpy,
+                _internal_setPriceRange: setPriceRangeSpy,
+              }),
+              _internal_updateAllSources: vi.fn(),
+            },
+          ],
+          _internal_lightUpdate: vi.fn(),
+        }),
+      },
+    };
+
+    const data = Array.from({ length: 200 }, (_, i) => ({ time: 1000 + i * 60 }));
+    frameHistoricalViewport(
+      mockChart, data, 1000 + 100 * 60, 80, false, null, { min: 56000, max: 100000 },
+    );
+
+    expect(setVisibleLogicalRangeSpy).toHaveBeenCalledWith({ from: 60, to: 140 });
+    expect(applyOptionsSpy).not.toHaveBeenCalledWith({ autoScale: true });
+    expect(setModeSpy).toHaveBeenCalledWith({ _internal_autoScale: false });
+    expect(setPriceRangeSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ _private__minValue: 56000, _private__maxValue: 100000 }),
+    );
+  });
+
+  it("frameLatestCandles preserves price range when preservedPriceRange is provided", () => {
+    const applyOptionsSpy = vi.fn();
+    const setVisibleLogicalRangeSpy = vi.fn();
+    const setModeSpy = vi.fn();
+    const setPriceRangeSpy = vi.fn();
+
+    const mockPriceRange = {
+      _internal_clone: () => ({ _private__minValue: 0, _private__maxValue: 0 }),
+    };
+    const mockChart: any = {
+      timeScale: () => ({ setVisibleLogicalRange: setVisibleLogicalRangeSpy }),
+      priceScale: () => ({ applyOptions: applyOptionsSpy }),
+      _private__chartWidget: {
+        _internal_model: () => ({
+          _internal_panes: () => [
+            {
+              _internal_rightPriceScale: () => ({
+                _internal_priceRange: () => mockPriceRange,
+                _internal_setMode: setModeSpy,
+                _internal_setPriceRange: setPriceRangeSpy,
+              }),
+              _internal_updateAllSources: vi.fn(),
+            },
+          ],
+          _internal_lightUpdate: vi.fn(),
+        }),
+      },
+    };
+
+    frameLatestCandles(mockChart, 100, false, { min: 56000, max: 100000 });
+    expect(setVisibleLogicalRangeSpy).toHaveBeenCalledWith({ from: 20, to: 108 });
+    expect(applyOptionsSpy).not.toHaveBeenCalledWith({ autoScale: true });
+    expect(setModeSpy).toHaveBeenCalledWith({ _internal_autoScale: false });
+    expect(setPriceRangeSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ _private__minValue: 56000, _private__maxValue: 100000 }),
+    );
+  });
+
+  it("getChartTimeScaleState extracts time scale metrics", () => {
+    expect(getChartTimeScaleState(null)).toBeNull();
+    const mockChart: any = {
+      timeScale: () => ({
+        options: () => ({ barSpacing: 14.5, rightOffset: 6 }),
+        scrollPosition: () => 5,
+        getVisibleLogicalRange: () => ({ from: 120, to: 165 }),
+        getVisibleRange: () => ({ from: 1700000000, to: 1700010000 }),
+      }),
+    };
+    const state = getChartTimeScaleState(mockChart);
+    expect(state).toEqual({
+      barSpacing: 14.5,
+      rightOffset: 6,
+      visibleBars: 45,
+      scrollPosition: 5,
+      lastVisibleTime: 1700010000,
+    });
+  });
+
+  it("frameLatestCandles locks rightmost candle and preserves zoom ratio when preservedTimeScale is provided", () => {
+    const applyOptionsSpy = vi.fn();
+    const setVisibleLogicalRangeSpy = vi.fn();
+    const scrollToPositionSpy = vi.fn();
+    const mockChart: any = {
+      timeScale: () => ({
+        applyOptions: applyOptionsSpy,
+        setVisibleLogicalRange: setVisibleLogicalRangeSpy,
+        scrollToPosition: scrollToPositionSpy,
+      }),
+      priceScale: () => ({ applyOptions: vi.fn() }),
+    };
+
+    const preservedTimeScale = {
+      barSpacing: 12,
+      rightOffset: 4,
+      visibleBars: 35,
+      scrollPosition: 4,
+    };
+
+    frameLatestCandles(mockChart, 500, false, null, preservedTimeScale);
+
+    expect(applyOptionsSpy).toHaveBeenCalledWith({
+      barSpacing: 12,
+      rightOffset: 4,
+    });
+    // to = 500 + 4 = 504, from = 504 - 35 = 469
+    expect(setVisibleLogicalRangeSpy).toHaveBeenCalledWith({ from: 469, to: 504 });
+    expect(scrollToPositionSpy).toHaveBeenCalledWith(4, false);
+  });
+
+  it("frameHistoricalViewport locks rightmost candle and preserves zoom ratio when preservedTimeScale is provided", () => {
+    const applyOptionsSpy = vi.fn();
+    const setVisibleLogicalRangeSpy = vi.fn();
+    const mockChart: any = {
+      timeScale: () => ({
+        applyOptions: applyOptionsSpy,
+        setVisibleLogicalRange: setVisibleLogicalRangeSpy,
+      }),
+      priceScale: () => ({ applyOptions: vi.fn() }),
+    };
+
+    const data = Array.from({ length: 300 }, (_, i) => ({ time: 1000 + i * 60 }));
+    const preservedTimeScale = {
+      barSpacing: 18,
+      rightOffset: 0,
+      visibleBars: 25,
+      scrollPosition: 0,
+      lastVisibleTime: 1000 + 150 * 60,
+    };
+
+    frameHistoricalViewport(mockChart, data, 1000 + 150 * 60, 80, false, null, null, preservedTimeScale);
+
+    expect(applyOptionsSpy).toHaveBeenCalledWith({
+      barSpacing: 18,
+      rightOffset: 0,
+    });
+    // rightIdx = 150, to = 150 + 1 = 151, from = 151 - 25 = 126
+    expect(setVisibleLogicalRangeSpy).toHaveBeenCalledWith({ from: 126, to: 151 });
   });
 
   it("autoScale is disabled (false) by default in chart preferences", () => {

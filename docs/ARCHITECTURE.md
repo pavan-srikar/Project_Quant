@@ -224,7 +224,7 @@ Every file in `src/` is strictly under 300 lines with a single, clear responsibi
 - `useTradingLayoutResize.ts` — Hook managing draggable splitter heights and responsive widths.
 - `useTradingJournal.ts` — Hook querying and mutating trade journal entries.
 - `useTradingShortcuts.ts` — Hook registering global terminal keyboard shortcuts.
-- `useChartViewportController.ts` — Single source of truth for viewport framing, calendar-time preservation across timeframe switches, and seamless historical candle window fetching.
+- `useChartViewportController.ts` — Viewport framing coordinator: preserves calendar-time, zoom ratio, and Y-axis price range across timeframe switches, prefetches primary timeframes, and coordinates live vs. historical anchors.
 
 #### Trading Terminal Panels (`src/pages/trading/`)
 - `src/pages/trading/constants.ts` — Central constants (timeframes, intervals, default colors, tool lists).
@@ -249,10 +249,10 @@ Every file in `src/` is strictly under 300 lines with a single, clear responsibi
 - `ChartPanel.tsx` — Primary chart viewport coordinator rendering Lightweight Charts canvas.
 - `chartConfig.ts` — Chart configuration factory generating themes, layout, and scale options.
 - `chartSeriesInit.ts` — Initializes candlestick series, volume histogram, and price lines.
-- `chartFraming.ts` — Calculates logical range framing recent candles with right margin.
+- `chartFraming.ts` — Calculates logical range framing recent candles with right margin, preserves Y-axis price range and zoom ratio across timeframe switches.
 - `chartPluginManager.ts` — Manages lifecycle of attached primitives (delta tooltip, sessions, drawings).
 - `chartHistoryLoader.ts` — Bidirectional history loader: detects left-scroll edge for older pagination and right-scroll edge for newer forward pagination towards live edge.
-- `chartWheelHandler.ts` — Intercepts wheel zoom events to prevent sub-pixel bar collapse.
+- `chartWheelHandler.ts` — Vertical mouse wheel price scaling on price axis and horizontal zoom-out clamping at oldest historical edge.
 - `chartOverlays.ts` — Configures overlay indicators (SMA, EMA, VWAP, Bollinger Bands).
 - `ChartOverlaysContainer.tsx` — DOM container rendering floating legends, countdown timers, and badges.
 - `ChartLegendHeader.tsx` — Top-left OHLCV legend with indicator readouts and eye toggle icons.

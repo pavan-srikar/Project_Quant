@@ -75,11 +75,22 @@ export interface TradingState extends WatchlistSlice {
   ) => void;
 }
 
+export interface ChartTimeScaleState {
+  barSpacing: number;
+  rightOffset: number;
+  visibleBars: number;
+  scrollPosition: number;
+  lastVisibleTime?: number;
+}
+
 export interface ChartViewportAnchor {
   symbol: string;
   fromTime: number;
   toTime: number;
   centerTime: number;
+  barCount?: number;
+  priceRange?: { min: number; max: number } | null;
+  timeScaleState?: ChartTimeScaleState | null;
 }
 
 export const useTradingStore = create<TradingState>((set, get) => ({
@@ -251,10 +262,7 @@ function replayPausedAfter(action: string, prevPaused: boolean): boolean {
 }
 
 function nextReplayState(
-  state: Pick<
-    TradingState,
-    "replayVersion" | "replayPaused" | "replaySpeed" | "replayCursorTimestamp" | "replaySessionDate"
-  >,
+  state: Pick<TradingState, "replayVersion" | "replayPaused" | "replaySpeed" | "replayCursorTimestamp" | "replaySessionDate">,
   action: string,
   opts?: { speed?: number; cursorTimestamp?: number },
 ): Partial<TradingState> {
@@ -264,9 +272,7 @@ function nextReplayState(
     isReplaying: !isStopped,
     replayPaused: replayPausedAfter(action, state.replayPaused),
     replaySpeed: isStopped ? 1 : (opts?.speed ?? state.replaySpeed),
-    replayCursorTimestamp: isStopped
-      ? null
-      : (opts?.cursorTimestamp ?? state.replayCursorTimestamp),
+    replayCursorTimestamp: isStopped ? null : (opts?.cursorTimestamp ?? state.replayCursorTimestamp),
     replaySessionDate: isStopped ? null : state.replaySessionDate,
     liveCandleUpdates: {},
   };

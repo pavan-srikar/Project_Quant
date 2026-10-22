@@ -54,7 +54,7 @@ All visual JSX elements, styling classes, and user-facing dialogs belong in:
 - **Position Sizing & Mark-to-Market PnL**: `src/lib/livePnl.ts` and `src/services/demo/engine/positions.ts`.
 - **Matching Engine & Margin Checks**: `src/services/demo/engine/` (`orders.ts`, `accounting.ts`).
 - **Drawing Tool Geometry & Hit Testing**: `src/lib/chart-plugins/drawing-tools/` (`geometry.ts`, `hit-test/`, `snapping.ts`).
-- **Data Fetching & Normalization**: `src/services/demo/binance/` and `src/services/queries/`.
+- **Data Fetching, Repository & Normalization**: `src/services/market-data/`, `src/services/demo/binance/` and `src/services/queries/`.
 - **State Mutations**: `src/services/stores/` (Zustand action setters).
 
 ### The 300-Line Rule

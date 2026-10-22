@@ -12,39 +12,35 @@ export function hitFibonacci(e: ResolvedEntry, p: Pt, tol: Tol): Hit | null {
   return onLevel ? bodyHit(e) : null;
 }
 
-// Position handles: entry / target / stop / side width / corners
+// Position handles: left entry (X & Y) / left target (Y) / left stop (Y) / right width (X)
 export function hitPosition(e: ResolvedEntry, p: Pt, tol: Tol): Hit | null {
   const { x1, x2, y1, yStop, yTarget } = e;
   if (x1 === null || x2 === null || y1 === null) return null;
   const xa = Math.min(x1, x2);
   const xb = Math.max(x1, x2);
-  const xm = (xa + xb) / 2;
+  const leftTimeKey = (x1 <= x2) ? "time" : "time2";
+  const rightTimeKey = (x1 <= x2) ? "time2" : "time";
 
-  // Center handles
-  if (yTarget != null && dist(p, { x: xm, y: yTarget }) <= tol.handle) {
+  // 1. First adjustment middle handle (on entry line, left anchor)
+  // Draggable in both X (date axis) and Y (entry price / risk-to-reward)
+  if (dist(p, { x: xa, y: y1 }) <= tol.handle) {
+    return pointHit(e, leftTimeKey, "price");
+  }
+
+  // 2. Target handle (left anchor, target price level)
+  if (yTarget != null && dist(p, { x: xa, y: yTarget }) <= tol.handle) {
     return pointHit(e, null, "targetPrice");
   }
-  if (yStop != null && dist(p, { x: xm, y: yStop }) <= tol.handle) {
+
+  // 3. Stop handle (left anchor, stop price level)
+  if (yStop != null && dist(p, { x: xa, y: yStop }) <= tol.handle) {
     return pointHit(e, null, "stopPrice");
   }
-  if (dist(p, { x: xm, y: y1 }) <= tol.handle) return pointHit(e, null, "price");
 
-  // Side handles (on entry line)
-  if (dist(p, { x: xa, y: y1 }) <= tol.handle) return pointHit(e, "time", null);
-  if (dist(p, { x: xb, y: y1 }) <= tol.handle) return pointHit(e, "time2", null);
-
-  // Corner handles
-  if (yTarget != null && dist(p, { x: xa, y: yTarget }) <= tol.handle) {
-    return pointHit(e, "time", "targetPrice");
-  }
-  if (yTarget != null && dist(p, { x: xb, y: yTarget }) <= tol.handle) {
-    return pointHit(e, "time2", "targetPrice");
-  }
-  if (yStop != null && dist(p, { x: xa, y: yStop }) <= tol.handle) {
-    return pointHit(e, "time", "stopPrice");
-  }
-  if (yStop != null && dist(p, { x: xb, y: yStop }) <= tol.handle) {
-    return pointHit(e, "time2", "stopPrice");
+  // 4. Right width handle (on entry line, right anchor)
+  // Draggable in X (date axis) to adjust position duration
+  if (dist(p, { x: xb, y: y1 }) <= tol.handle) {
+    return pointHit(e, rightTimeKey, null);
   }
 
   // Edge line hit-tests
@@ -58,13 +54,13 @@ export function hitPosition(e: ResolvedEntry, p: Pt, tol: Tol): Hit | null {
   const ys = [y1, yStop ?? y1, yTarget ?? y1];
   const top = Math.min(...ys);
   const bot = Math.max(...ys);
-  // Expand bounds to include outside badges (~32px) so hovering on badges keeps tool hovered
-  const badgePad = 32;
+
+  // Position is ONLY hit/selected inside the actual box (not on external tags like target or stop)
   const inside =
-    p.x >= Math.min(xa - tol.line, xm - 75) &&
-    p.x <= Math.max(xb + tol.line, xm + 75) &&
-    p.y >= top - badgePad &&
-    p.y <= bot + badgePad;
+    p.x >= xa - tol.line &&
+    p.x <= xb + tol.line &&
+    p.y >= top - tol.line &&
+    p.y <= bot + tol.line;
   return inside ? bodyHit(e) : null;
 }
 

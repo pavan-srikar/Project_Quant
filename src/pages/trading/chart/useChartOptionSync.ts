@@ -92,7 +92,6 @@ export function useChartOptionSync({
     chartRef.current?.applyOptions({
       timeScale: {
         secondsVisible: timeframe === "1m",
-        rightOffset: timeframe === "1m" ? 10 : 6,
         minBarSpacing: 0.5,
       },
     });

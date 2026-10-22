@@ -73,6 +73,7 @@ Oscillator indicators reside in separate Lightweight Charts instances below `mai
 2. `subChart.timeScale().setVisibleLogicalRange(range)`
 3. Margin widths are matched on both charts via `minimumWidth: 80` on the right price scale.
 4. Crosshairs are bi-directionally tracked so scrubbing across any pane displays corresponding bar values on all panes.
+5. **Wheel Interaction Debounce (`useIndicatorChart.ts`)**: Mouse wheel zoom and pan events on sub-chart oscillator panes engage a 1500ms debounce timer on `isSubInteractingRef`, isolating user-driven subchart interactions and preventing reciprocal range feedback loops with `mainChart`.
 
 ---
 

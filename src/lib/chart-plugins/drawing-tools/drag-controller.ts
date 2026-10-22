@@ -120,6 +120,43 @@ export function groupForSelection(
   return out;
 }
 
+function clampPositionDrag(
+  updated: DrawingLine,
+  timeKey: string | null,
+  priceKey: string | null,
+  pt: DataPoint,
+): void {
+  if (timeKey) {
+    if (timeKey === "time" && updated.time2 != null && pt.time >= updated.time2) {
+      updated.time = updated.time2 - 1;
+    } else if (timeKey === "time2" && updated.time != null && pt.time <= updated.time) {
+      updated.time2 = updated.time + 1;
+    } else {
+      updated[timeKey as "time" | "time2"] = pt.time;
+    }
+  }
+
+  if (priceKey) {
+    const isLong = updated.side !== "short";
+    const stop = updated.stopPrice;
+    const target = updated.targetPrice;
+    const entry = updated.price;
+    const step = Math.max(Math.abs(entry) * 0.001, 0.0001);
+
+    if (priceKey === "price" && stop != null && target != null) {
+      const min = Math.min(stop, target) + step;
+      const max = Math.max(stop, target) - step;
+      updated.price = min < max ? Math.min(Math.max(pt.price, min), max) : pt.price;
+    } else if (priceKey === "targetPrice") {
+      updated.targetPrice = isLong ? Math.max(pt.price, entry + step) : Math.min(pt.price, entry - step);
+    } else if (priceKey === "stopPrice") {
+      updated.stopPrice = isLong ? Math.min(pt.price, entry - step) : Math.max(pt.price, entry + step);
+    } else {
+      updated[priceKey as "price"] = pt.price;
+    }
+  }
+}
+
 export function dragPoint(
   drag: DragState,
   pt: DataPoint | null,
@@ -127,8 +164,12 @@ export function dragPoint(
   if (drag.hit.region.kind !== "point" || !pt) return null;
   const updated: DrawingLine = { ...drag.origin };
   const { timeKey, priceKey } = drag.hit.region;
-  if (timeKey) updated[timeKey] = pt.time;
-  if (priceKey) updated[priceKey] = pt.price;
+  if (updated.type === "position") {
+    clampPositionDrag(updated, timeKey, priceKey, pt);
+  } else {
+    if (timeKey) updated[timeKey] = pt.time;
+    if (priceKey) updated[priceKey] = pt.price;
+  }
   return updated;
 }
 

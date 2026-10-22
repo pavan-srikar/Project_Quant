@@ -29,14 +29,43 @@ export function LineStyleSection({
 }) {
   return (
     <>
-      <SettingsRow label="Color">
-        <input
-          type="color"
-          value={drawing.color}
-          onChange={(e) => patch({ color: e.target.value })}
-          className="h-6 w-10 cursor-pointer bg-transparent border-0 p-0"
-        />
-      </SettingsRow>
+      {drawing.type === "position" ? (
+        <>
+          <SettingsRow label="Target (Blue)">
+            <input
+              type="color"
+              value={drawing.targetColor ?? "#3179f5"}
+              onChange={(e) => patch({ targetColor: e.target.value })}
+              className="h-6 w-10 cursor-pointer bg-transparent border-0 p-0"
+            />
+          </SettingsRow>
+          <SettingsRow label="Stop (Red)">
+            <input
+              type="color"
+              value={drawing.stopColor ?? "#ec407a"}
+              onChange={(e) => patch({ stopColor: e.target.value })}
+              className="h-6 w-10 cursor-pointer bg-transparent border-0 p-0"
+            />
+          </SettingsRow>
+          <SettingsRow label="Middle Line">
+            <input
+              type="color"
+              value={drawing.entryLineColor ?? "#787b86"}
+              onChange={(e) => patch({ entryLineColor: e.target.value })}
+              className="h-6 w-10 cursor-pointer bg-transparent border-0 p-0"
+            />
+          </SettingsRow>
+        </>
+      ) : (
+        <SettingsRow label="Color">
+          <input
+            type="color"
+            value={drawing.color}
+            onChange={(e) => patch({ color: e.target.value })}
+            className="h-6 w-10 cursor-pointer bg-transparent border-0 p-0"
+          />
+        </SettingsRow>
+      )}
       <SettingsRow label="Width">
         <WidthButtons current={drawing.width ?? 2} onPick={(width) => patch({ width })} />
       </SettingsRow>

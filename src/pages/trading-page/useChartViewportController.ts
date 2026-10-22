@@ -1,9 +1,12 @@
 import type { IChartApi } from "lightweight-charts";
-import { useCallback, useMemo, useState } from "react";
-import { useCandles } from "../../services/queries.ts";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { prefetchCandles, useCandles } from "../../services/queries.ts";
 import { useTradingStore } from "../../services/store.tsx";
 import { setRepositoryAnchor } from "../../services/market-data/index.ts";
 import { TIMEFRAMES, type Timeframe } from "../trading/constants.ts";
+import { getChartPriceRange, getChartTimeScaleState } from "../trading/chart/chartFraming.ts";
+import type { ChartTimeScaleState } from "../../services/stores/useTradingStore.ts";
 
 export interface HistoricalAnchor {
   symbol: string;
@@ -11,6 +14,8 @@ export interface HistoricalAnchor {
   fromTime: number;
   toTime: number;
   barCount: number;
+  priceRange?: { min: number; max: number } | null;
+  timeScaleState?: ChartTimeScaleState | null;
 }
 
 export function useChartViewportController(
@@ -48,6 +53,17 @@ export function useChartViewportController(
     }
   }, [timeframe]);
 
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!selectedSymbol || replayVersion) return;
+    const commonTfs: Timeframe[] = ["15m", "30m", "1h", "4h", "1d"];
+    for (const tf of commonTfs) {
+      if (tf === timeframe) continue;
+      const limit = tf === "4h" || tf === "1h" ? 2_500 : tf === "1d" ? 1_825 : 2_000;
+      prefetchCandles(queryClient, selectedSymbol, tf, limit);
+    }
+  }, [selectedSymbol, timeframe, replayVersion, queryClient]);
+
   const { data: candles = [] } = useCandles(
     selectedSymbol,
     timeframe,
@@ -63,36 +79,63 @@ export function useChartViewportController(
 
       if (chart) {
         try {
+          const priceRange = getChartPriceRange(chart);
+          const timeScaleState = getChartTimeScaleState(chart);
           const vr = chart.timeScale().getVisibleRange();
           const lr = chart.timeScale().getVisibleLogicalRange();
-          const totalBars = allCandlesLength;
+          const totalBars = allCandlesLength > 0 ? allCandlesLength : candles.length;
+          const ts = chart.timeScale() as any;
+          const scrollPos = typeof ts.scrollPosition === "function" ? ts.scrollPosition() : 0;
           const hasValidVr =
             vr && typeof vr.from === "number" && typeof vr.to === "number" && vr.from < vr.to;
-          const isAtLiveEdge = totalBars > 0 && lr && lr.to >= totalBars - 3;
+          const latestBarIdx = totalBars > 0 ? totalBars - 1 : 0;
+          const isLatestBarInView =
+            totalBars <= 0 ||
+            !lr ||
+            lr.to >= totalBars - 30 ||
+            (latestBarIdx >= lr.from - 10 && latestBarIdx <= lr.to + 50);
+          const isAtLiveEdge = scrollPos >= -30 || isLatestBarInView;
+          const barCount = lr ? Math.round(lr.to - lr.from) : (timeScaleState?.visibleBars || 80);
 
           if (!isAtLiveEdge && hasValidVr) {
             const fromTime = vr.from as number;
             const toTime = vr.to as number;
             const centerTime = Math.round((fromTime + toTime) / 2);
-            const barCount = lr ? Math.max(30, Math.min(250, Math.round(lr.to - lr.from))) : 80;
             anchor = {
               symbol: selectedSymbol,
               fromTime,
               toTime,
               centerTime,
               barCount,
+              priceRange,
+              timeScaleState,
+            };
+          } else {
+            anchor = {
+              symbol: selectedSymbol,
+              fromTime: 0,
+              toTime: 0,
+              centerTime: 0,
+              barCount,
+              priceRange,
+              timeScaleState,
             };
           }
         } catch {}
       }
 
       useTradingStore.getState().setChartViewportAnchor(anchor);
-      setRepositoryAnchor(anchor);
-      setHistoricalTargetTime(anchor ? anchor.centerTime : undefined);
+      if (anchor && anchor.fromTime > 0) {
+        setRepositoryAnchor(anchor);
+        setHistoricalTargetTime(anchor.centerTime);
+      } else {
+        setRepositoryAnchor(null);
+        setHistoricalTargetTime(undefined);
+      }
       setTimeframe(tf);
       localStorage.setItem("trading_timeframe", tf);
     },
-    [mainChart, allCandlesLength, selectedSymbol],
+    [mainChart, allCandlesLength, candles.length, selectedSymbol],
   );
 
   const resetToLive = useCallback(() => {

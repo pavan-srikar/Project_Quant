@@ -24,31 +24,32 @@ export function renderPosition(
   const width = xb - xa;
   if (width < 2) return;
 
+  const targetColor = e.d.targetColor ?? POS_GREEN;
+  const stopColor = e.d.stopColor ?? POS_RED;
+  const entryLineColor = e.d.entryLineColor ?? "#787b86";
+
   // Target Zone (Profit) & Stop Zone (Loss)
-  posZone(scope, xa, xb, y1, yTarget, POS_GREEN);
-  posZone(scope, xa, xb, y1, yStop, POS_RED);
+  posZone(scope, xa, xb, y1, yTarget, targetColor);
+  posZone(scope, xa, xb, y1, yStop, stopColor);
 
   // High-contrast Entry Separator Line
-  strokeLine(scope, toBitmap(scope, xa, y1), toBitmap(scope, xb, y1), "#787b86", 1.5);
+  strokeLine(scope, toBitmap(scope, xa, y1), toBitmap(scope, xb, y1), entryLineColor, 1.5);
 
   // Interactive Live Position Tracker (Entry → Current Price, always visible once triggered)
   renderLivePositionTracker(scope, e, info, xa, xb, y1);
 
-  // Target, Stop, and Risk/Reward badges ONLY appear when you hover over it
-  if (e.isHovered || e.state === "hovered") {
-    renderPositionBadges(scope, e, info, xa, xb, y1, yTarget, yStop);
+  // Target, Stop, and Risk/Reward badges ONLY appear when hovered or selected
+  if (e.isHovered || e.state === "hovered" || e.state === "selected") {
+    renderPositionBadges(scope, e, info, xa, xb, y1, yTarget, yStop, targetColor, stopColor);
   }
 
   // Handles appear on hover or selection (for resizing)
   if (showHandles(e)) {
-    renderPositionHandles(scope, e, xa, xb, y1);
+    renderPositionHandles(scope, e, xa, xb, y1, targetColor, stopColor);
   }
 }
 
-export {
-  drawLiveTrackerBadge,
-  renderLivePositionTracker,
-} from "./position-tracker-renderer.ts";
+export { renderLivePositionTracker } from "./position-tracker-renderer.ts";
 
 export function posZone(
   scope: BitmapCoordinatesRenderingScope,
@@ -83,6 +84,8 @@ export function renderPositionBadges(
   y1: number,
   yTarget: number,
   yStop: number,
+  targetColor: string = POS_GREEN,
+  stopColor: string = POS_RED,
 ): void {
   const d = e.d;
   if (d.stopPrice == null || d.targetPrice == null) return;
@@ -93,25 +96,44 @@ export function renderPositionBadges(
   const targetDiffPct = d.price !== 0 ? (reward / d.price) * 100 : 0;
   const stopDiffPct = d.price !== 0 ? (risk / d.price) * 100 : 0;
 
-  // Minimal target line: Target: price [+x%]
+  // Minimal target line: Target: price (x%)
   const targetLines = [
-    `Target: ${info.priceFormat(d.targetPrice)} [+${targetDiffPct.toFixed(2)}%]`,
+    `Target: ${info.priceFormat(d.targetPrice)} (${targetDiffPct.toFixed(2)}%)`,
   ];
 
-  // Minimal stop line: Stop: price [-y%]
+  // Minimal stop line: Stop: price (y%)
   const stopLines = [
-    `Stop: ${info.priceFormat(d.stopPrice)} [-${stopDiffPct.toFixed(2)}%]`,
+    `Stop: ${info.priceFormat(d.stopPrice)} (${stopDiffPct.toFixed(2)}%)`,
   ];
 
   const xm = (xa + xb) / 2;
   const isLong = d.side !== "short";
 
-  // Position target badge outside target zone, stop badge outside stop zone (no overlap on position)
-  drawTvBadge(scope, xm, yTarget, targetLines, POS_GREEN, isLong ? "above" : "below");
-  drawTvBadge(scope, xm, yStop, stopLines, POS_RED, isLong ? "below" : "above");
+  // Position target badge outside target zone, stop badge outside stop zone
+  drawTvBadge(scope, xm, yTarget, targetLines, targetColor, isLong ? "above" : "below");
+  drawTvBadge(scope, xm, yStop, stopLines, stopColor, isLong ? "below" : "above");
 
-  // In the middle: show Risk/Reward ratio
-  drawTvBadge(scope, xm, y1, [`Risk/Reward: ${rr.toFixed(2)}`], "#2962ff", "center");
+  // In the middle: Closed / Open PnL and Risk/reward ratio
+  const midLines: string[] = [];
+  const inProfit =
+    e.currentPrice != null
+      ? (isLong ? e.currentPrice >= d.price : e.currentPrice <= d.price)
+      : true;
+
+  if (e.trackingStatus === "CLOSED" && e.currentPrice != null) {
+    const pct = d.price !== 0 ? ((e.currentPrice - d.price) / d.price) * (isLong ? 100 : -100) : 0;
+    const sign = pct >= 0 ? "+" : "";
+    midLines.push(`Closed: ${info.priceFormat(e.currentPrice)} [${sign}${pct.toFixed(2)}%]`);
+  } else if (e.hasTriggered && e.currentPrice != null) {
+    const pct = d.price !== 0 ? ((e.currentPrice - d.price) / d.price) * (isLong ? 100 : -100) : 0;
+    const sign = pct >= 0 ? "+" : "";
+    midLines.push(`Open: ${info.priceFormat(e.currentPrice)} [${sign}${pct.toFixed(2)}%]`);
+  }
+  const rrStr = Number.isInteger(rr) ? `${rr}` : rr.toFixed(2);
+  midLines.push(`Risk/reward ratio: ${rrStr}`);
+
+  const midColor = inProfit ? targetColor : stopColor;
+  drawTvBadge(scope, xm, y1, midLines, midColor, "center", true);
 }
 
 export function drawTvBadge(
@@ -121,6 +143,7 @@ export function drawTvBadge(
   lines: string[],
   accentColor: string,
   align: "above" | "below" | "center" = "center",
+  hasWhiteBorder: boolean = false,
 ): void {
   const ctx = scope.context;
   const hpr = scope.horizontalPixelRatio;
@@ -148,26 +171,37 @@ export function drawTvBadge(
     by = Math.round(edgeY * vpr + offset);
   }
 
-  // Clamp within viewport
-  const clampedX = Math.min(Math.max(4 * hpr, bx), scope.bitmapSize.width - boxW - 4 * hpr);
-  const clampedY = Math.min(Math.max(4 * vpr, by), scope.bitmapSize.height - boxH - 4 * vpr);
+  // Fixed position: If badge is off-screen, do not render (prevents drifting to viewport edges)
+  if (by + boxH < 0 || by > scope.bitmapSize.height) {
+    ctx.restore();
+    return;
+  }
 
-  // Badge background
-  ctx.fillStyle = "rgba(18, 22, 34, 0.90)";
+  const drawX = bx;
+  const drawY = by;
+
+  // Badge background: Solid color from TradingView reference image
+  ctx.fillStyle = accentColor;
   ctx.beginPath();
-  ctx.roundRect(clampedX, clampedY, boxW, boxH, 4 * hpr);
+  ctx.roundRect(drawX, drawY, boxW, boxH, 4 * hpr);
   ctx.fill();
 
-  // Subtle border with accent
-  ctx.strokeStyle = hexToRgba(accentColor, 0.7);
-  ctx.lineWidth = 1 * vpr;
-  ctx.stroke();
+  // White border for middle badge / selected state
+  if (hasWhiteBorder) {
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1.5 * vpr;
+    ctx.stroke();
+  } else {
+    ctx.strokeStyle = hexToRgba(accentColor, 0.9);
+    ctx.lineWidth = 1 * vpr;
+    ctx.stroke();
+  }
 
-  // Text rendering
+  // Text rendering: Crisp dark text from reference image
   ctx.textBaseline = "top";
   lines.forEach((l, i) => {
-    ctx.fillStyle = i === 0 ? "#ffffff" : "#b2b5be";
-    ctx.fillText(l, clampedX + padX, clampedY + padY + i * lineH);
+    ctx.fillStyle = "#131722";
+    ctx.fillText(l, drawX + padX, drawY + padY + i * lineH);
   });
   ctx.restore();
 }
@@ -178,25 +212,17 @@ export function renderPositionHandles(
   xa: number,
   xb: number,
   y1: number,
+  targetColor: string = POS_GREEN,
+  stopColor: string = POS_RED,
 ): void {
-  const xm = (xa + xb) / 2;
+  // Target & Stop handles on the left anchor line
+  if (e.yTarget != null) drawHandle(scope, toBitmap(scope, xa, e.yTarget), targetColor);
+  if (e.yStop != null) drawHandle(scope, toBitmap(scope, xa, e.yStop), stopColor);
 
-  // Center handles
-  drawHandle(scope, toBitmap(scope, xm, y1), "#ffffff"); // Entry center
-  if (e.yTarget != null) drawHandle(scope, toBitmap(scope, xm, e.yTarget), POS_GREEN); // Target center
-  if (e.yStop != null) drawHandle(scope, toBitmap(scope, xm, e.yStop), POS_RED); // Stop center
-
-  // Side width handles (left & right on entry line)
+  // First adjustment middle handle (entry) on left: moves in X and Y
   drawHandle(scope, toBitmap(scope, xa, y1), "#ffffff");
-  drawHandle(scope, toBitmap(scope, xb, y1), "#ffffff");
 
-  // Corner handles
-  if (e.yTarget != null) {
-    drawHandle(scope, toBitmap(scope, xa, e.yTarget), POS_GREEN);
-    drawHandle(scope, toBitmap(scope, xb, e.yTarget), POS_GREEN);
-  }
-  if (e.yStop != null) {
-    drawHandle(scope, toBitmap(scope, xa, e.yStop), POS_RED);
-    drawHandle(scope, toBitmap(scope, xb, e.yStop), POS_RED);
-  }
+  // Right width handle on entry line: adjusts duration
+  drawHandle(scope, toBitmap(scope, xb, y1), "#ffffff");
 }
+

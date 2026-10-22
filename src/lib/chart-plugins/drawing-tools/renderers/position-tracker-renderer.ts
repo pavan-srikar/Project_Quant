@@ -9,57 +9,11 @@ import {
 export const POS_GREEN = "#3179f5";
 export const POS_RED = "#ec407a";
 
-export function drawLiveTrackerBadge(
-  scope: BitmapCoordinatesRenderingScope,
-  x: number,
-  y: number,
-  lines: string[],
-  accentColor: string,
-): void {
-  const ctx = scope.context;
-  const hpr = scope.horizontalPixelRatio;
-  const vpr = scope.verticalPixelRatio;
-
-  ctx.save();
-  ctx.font = `600 ${Math.round(10 * vpr)}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-  const lineH = 13 * vpr;
-  const padX = 6 * hpr;
-  const padY = 4 * vpr;
-
-  const maxTextW = Math.max(...lines.map((l) => ctx.measureText(l).width));
-  const boxW = maxTextW + padX * 2;
-  const boxH = lines.length * lineH + padY * 2;
-
-  let bx = Math.round(x * hpr + 8 * hpr);
-  let by = Math.round(y * vpr - boxH / 2);
-
-  // If badge would overflow right of viewport, place on left of marker
-  if (bx + boxW > scope.bitmapSize.width - 4 * hpr) {
-    bx = Math.round(x * hpr - boxW - 8 * hpr);
-  }
-  by = Math.min(Math.max(4 * vpr, by), scope.bitmapSize.height - boxH - 4 * vpr);
-
-  ctx.fillStyle = "rgba(18, 22, 34, 0.92)";
-  ctx.beginPath();
-  ctx.roundRect(bx, by, boxW, boxH, 3 * hpr);
-  ctx.fill();
-
-  ctx.strokeStyle = hexToRgba(accentColor, 0.85);
-  ctx.lineWidth = 1 * vpr;
-  ctx.stroke();
-
-  ctx.textBaseline = "top";
-  lines.forEach((l, i) => {
-    ctx.fillStyle = i === 0 ? accentColor : "#e0e3ea";
-    ctx.fillText(l, bx + padX, by + padY + i * lineH);
-  });
-  ctx.restore();
-}
 
 export function renderLivePositionTracker(
   scope: BitmapCoordinatesRenderingScope,
   e: ResolvedEntry,
-  info: DrawCtxInfo,
+  _info: DrawCtxInfo,
   xa: number,
   xb: number,
   y1: number,
@@ -76,7 +30,9 @@ export function renderLivePositionTracker(
 
   const isLong = e.d.side !== "short";
   const inProfit = isLong ? e.currentPrice >= e.d.price : e.currentPrice <= e.d.price;
-  const trackColor = inProfit ? POS_GREEN : POS_RED;
+  const targetColor = e.d.targetColor ?? POS_GREEN;
+  const stopColor = e.d.stopColor ?? POS_RED;
+  const trackColor = inProfit ? targetColor : stopColor;
 
   // Entry anchor coordinate (clamped within position tool time span [xa, xb])
   const rawXEntry = e.xHitEntry ?? xa;
@@ -136,15 +92,4 @@ export function renderLivePositionTracker(
   ctx.strokeStyle = trackColor;
   ctx.stroke();
   ctx.restore();
-
-  // 5. Tracking P&L readout badge (Live or Closed): minimal format "closed: price [z%]"
-  const pct = e.d.price !== 0 ? ((e.currentPrice - e.d.price) / e.d.price) * (isLong ? 100 : -100) : 0;
-  const sign = pct >= 0 ? "+" : "";
-  const statusLabel = e.trackingStatus === "CLOSED" ? "Closed" : "Live";
-
-  const trackerLines = [
-    `${statusLabel}: ${info.priceFormat(e.currentPrice)} [${sign}${pct.toFixed(2)}%]`,
-  ];
-
-  drawLiveTrackerBadge(scope, xTrack, yCurr, trackerLines, trackColor);
 }
