@@ -11,7 +11,7 @@ export const BELOW_INDICATORS: IndicatorType[] = [
   "WR",
 ];
 
-export const SHORT_NAMES: Record<IndicatorType, string> = {
+export const SHORT_NAMES: Record<string, string> = {
   RSI: "RSI",
   MACD: "MACD",
   ATR: "ATR",
@@ -22,6 +22,7 @@ export const SHORT_NAMES: Record<IndicatorType, string> = {
   SMA: "SMA",
   BOLL: "BOLL",
   VWAP: "VWAP",
+  VOL: "VOL",
 };
 
 export function getIndicatorTabLabel(

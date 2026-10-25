@@ -4,7 +4,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { prefetchCandles, useCandles } from "../../services/queries.ts";
 import { useTradingStore } from "../../services/store.tsx";
 import { setRepositoryAnchor } from "../../services/market-data/index.ts";
-import { TIMEFRAMES, type Timeframe } from "../trading/constants.ts";
+import type { Candle } from "../../services/schemas.ts";
+import { TF_INTERVAL_MS, TIMEFRAMES, type Timeframe } from "../trading/constants.ts";
 import { getChartPriceRange, getChartTimeScaleState } from "../trading/chart/chartFraming.ts";
 import type { ChartTimeScaleState } from "../../services/stores/useTradingStore.ts";
 
@@ -14,6 +15,9 @@ export interface HistoricalAnchor {
   fromTime: number;
   toTime: number;
   barCount: number;
+  lastVisibleTime?: number;
+  lastVisibleEndTime?: number;
+  rightMarginBars?: number;
   priceRange?: { min: number; max: number } | null;
   timeScaleState?: ChartTimeScaleState | null;
 }
@@ -21,7 +25,7 @@ export interface HistoricalAnchor {
 export function useChartViewportController(
   selectedSymbol: string,
   mainChart: IChartApi | null,
-  allCandlesLength: number,
+  allCandles: Candle[],
   replayVersion?: number,
 ) {
   // Chart timeframe persistence across symbols
@@ -79,48 +83,50 @@ export function useChartViewportController(
 
       if (chart) {
         try {
+          const displayCandles = allCandles && allCandles.length > 0 ? allCandles : candles;
           const priceRange = getChartPriceRange(chart);
-          const timeScaleState = getChartTimeScaleState(chart);
+          const timeScaleState = getChartTimeScaleState(chart, displayCandles, timeframe);
           const vr = chart.timeScale().getVisibleRange();
           const lr = chart.timeScale().getVisibleLogicalRange();
-          const totalBars = allCandlesLength > 0 ? allCandlesLength : candles.length;
+          const totalBars = displayCandles.length;
           const ts = chart.timeScale() as any;
           const scrollPos = typeof ts.scrollPosition === "function" ? ts.scrollPosition() : 0;
           const hasValidVr =
             vr && typeof vr.from === "number" && typeof vr.to === "number" && vr.from < vr.to;
-          const latestBarIdx = totalBars > 0 ? totalBars - 1 : 0;
-          const isLatestBarInView =
-            totalBars <= 0 ||
-            !lr ||
-            lr.to >= totalBars - 30 ||
-            (latestBarIdx >= lr.from - 10 && latestBarIdx <= lr.to + 50);
-          const isAtLiveEdge = scrollPos >= -30 || isLatestBarInView;
+          const rightBarIdx = lr ? Math.min(totalBars - 1, Math.floor(lr.to)) : totalBars - 1;
+          const rightMarginBars = lr && rightBarIdx >= 0
+            ? Math.max(0, Math.round(lr.to - (rightBarIdx + 1)))
+            : (timeScaleState?.rightMarginBars ?? (scrollPos > 0 ? scrollPos : 0));
+
+          const nowSec = Math.floor(Date.now() / 1000);
+          const vrToSec = hasValidVr ? (vr.to as number) : 0;
+          // If the visible right edge is more than 3 days in the past, it CANNOT be live edge
+          const isHistoricalTime = vrToSec > 0 && (nowSec - vrToSec > 86400 * 3);
+          const isAtLiveEdge = !isHistoricalTime && totalBars > 0 && lr
+            ? (rightBarIdx >= totalBars - 2 && rightMarginBars <= 20)
+            : false;
           const barCount = lr ? Math.round(lr.to - lr.from) : (timeScaleState?.visibleBars || 80);
 
-          if (!isAtLiveEdge && hasValidVr) {
-            const fromTime = vr.from as number;
-            const toTime = vr.to as number;
-            const centerTime = Math.round((fromTime + toTime) / 2);
-            anchor = {
-              symbol: selectedSymbol,
-              fromTime,
-              toTime,
-              centerTime,
-              barCount,
-              priceRange,
-              timeScaleState,
-            };
-          } else {
-            anchor = {
-              symbol: selectedSymbol,
-              fromTime: 0,
-              toTime: 0,
-              centerTime: 0,
-              barCount,
-              priceRange,
-              timeScaleState,
-            };
-          }
+          const fromTime = hasValidVr ? (vr.from as number) : 0;
+          const toTime = hasValidVr ? (vr.to as number) : 0;
+          const centerTime = hasValidVr ? Math.round((fromTime + toTime) / 2) : 0;
+          const candleAtRight = rightBarIdx >= 0 && rightBarIdx < displayCandles.length ? displayCandles[rightBarIdx] : null;
+          const curTfSec = (TF_INTERVAL_MS[timeframe] ?? 3600_000) / 1000;
+          const lastVisibleEndTime = candleAtRight ? Number(candleAtRight.time) + curTfSec : (toTime > 0 ? toTime : undefined);
+          const lastVisibleTime = candleAtRight ? Number(candleAtRight.time) : (timeScaleState?.lastVisibleTime ?? (toTime > 0 ? toTime : undefined));
+
+          anchor = {
+            symbol: selectedSymbol,
+            fromTime: isAtLiveEdge ? 0 : fromTime,
+            toTime: isAtLiveEdge ? 0 : toTime,
+            centerTime: isAtLiveEdge ? 0 : centerTime,
+            lastVisibleTime,
+            lastVisibleEndTime,
+            rightMarginBars,
+            barCount,
+            priceRange,
+            timeScaleState: timeScaleState ? { ...timeScaleState, lastVisibleTime, lastVisibleEndTime, rightMarginBars } : null,
+          };
         } catch {}
       }
 
@@ -135,7 +141,7 @@ export function useChartViewportController(
       setTimeframe(tf);
       localStorage.setItem("trading_timeframe", tf);
     },
-    [mainChart, allCandlesLength, candles.length, selectedSymbol],
+    [mainChart, allCandles, candles, selectedSymbol, timeframe],
   );
 
   const resetToLive = useCallback(() => {

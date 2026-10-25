@@ -10,6 +10,8 @@ import type { IndicatorSettingsModalProps } from "./types";
 import { IndicatorInputsTab } from "./IndicatorInputsTab";
 import { IndicatorStyleTab } from "./IndicatorStyleTab";
 
+import { getCustomPineIndicators } from "../../lib/pinescript";
+
 export function IndicatorSettingsModal({
   isOpen,
   onClose,
@@ -21,11 +23,13 @@ export function IndicatorSettingsModal({
   const [activeTab, setActiveTab] = useState<"inputs" | "style">("inputs");
 
   // Local draft state
-  const [draft, setDraft] = useState<IndicatorSettings>(settings);
+  const [draft, setDraft] = useState<IndicatorSettings>(
+    settings ?? { color: "#2962ff", visible: true },
+  );
 
   useEffect(() => {
     if (isOpen) {
-      setDraft(settings);
+      setDraft(settings ?? { color: "#2962ff", visible: true });
       setActiveTab("inputs");
     }
   }, [isOpen, settings, type]);
@@ -33,7 +37,14 @@ export function IndicatorSettingsModal({
   if (!isOpen || !type) return null;
 
   const registry = INDICATOR_REGISTRY.find((r) => r.type === type);
-  const title = registry ? `${registry.label} (${type})` : type;
+  const customIndicator = type.startsWith("pine_")
+    ? getCustomPineIndicators().find((c) => c.id === type)
+    : null;
+  const title = registry
+    ? `${registry.label} (${type})`
+    : customIndicator
+      ? customIndicator.name
+      : type;
 
   const handleApply = () => {
     onSave(type, draft);

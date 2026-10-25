@@ -24,8 +24,8 @@ export function useTradingChartControls({
   // Indicators
   const [activeIndicators, setActiveIndicators] = useState<IndicatorType[]>(() => {
     const fromStorage = getChartPreferencesFromStorage().activeIndicators;
-    return (fromStorage ?? []).filter((type) =>
-      INDICATOR_REGISTRY.some((r) => r.type === type),
+    return (fromStorage ?? []).filter(
+      (type) => INDICATOR_REGISTRY.some((r) => r.type === type) || type.startsWith("pine_"),
     );
   });
   const [showIndicatorMenu, setShowIndicatorMenu] = useState(false);
@@ -47,7 +47,11 @@ export function useTradingChartControls({
       setActiveIndicators((prev) => {
         const isAdding = !prev.includes(type);
         const next = isAdding ? [...prev, type] : prev.filter((t) => t !== type);
-        updateChartPreferences({ activeIndicators: next });
+        const patch: Parameters<typeof updateChartPreferences>[0] = { activeIndicators: next };
+        if (type === "VOL") {
+          patch.showVolume = isAdding;
+        }
+        updateChartPreferences(patch);
         if (isAdding) {
           const cfg = INDICATOR_REGISTRY.find((r) => r.type === type);
           if (cfg && cfg.pane === "below") {
@@ -61,8 +65,8 @@ export function useTradingChartControls({
   );
 
   const handleSetIndicators = useCallback((indicators: IndicatorType[]) => {
-    const valid = indicators.filter((type) =>
-      INDICATOR_REGISTRY.some((r) => r.type === type),
+    const valid = indicators.filter(
+      (type) => INDICATOR_REGISTRY.some((r) => r.type === type) || type.startsWith("pine_"),
     );
     setActiveIndicators(valid);
     updateChartPreferences({ activeIndicators: valid });

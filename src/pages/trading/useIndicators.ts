@@ -9,8 +9,13 @@ import {
   INDICATOR_REGISTRY,
   type IndicatorType,
 } from "../../lib/indicators.ts";
+import {
+  getCustomPineIndicators,
+  parsePineScript,
+  evaluatePineScript,
+} from "../../lib/pinescript";
 import { toIndicatorCandles } from "./utils.ts";
-import { useIndicatorSettings } from "../../hooks/useIndicatorSettings.ts";
+import { useIndicatorSettings, type IndicatorSettings } from "../../hooks/useIndicatorSettings.ts";
 
 export function useIndicators(
   chartRef: React.RefObject<IChartApi | null>,
@@ -38,17 +43,43 @@ export function useIndicators(
     }
     indicatorSeriesRef.current.clear();
 
-    // Main chart only renders overlay indicators (SMA, EMA, BOLL, VWAP).
-    // Sub-chart indicators (RSI, MACD, ATR, STOCH) are rendered in the bottom panel Indicators tab.
+    const customScripts = getCustomPineIndicators();
+
+    // Main chart renders overlay indicators (SMA, EMA, BOLL, VWAP, and custom Pine overlays).
     const overlayIndicators = activeIndicators.filter((type) => {
+      if (type.startsWith("pine_")) {
+        const s = customScripts.find((cs) => cs.id === type);
+        return s ? s.overlay : false;
+      }
       const config = INDICATOR_REGISTRY.find((r) => r.type === type);
-      return config && config.pane === "overlay";
+      return config && config.pane === "overlay" && config.type !== "VOL";
     });
 
     for (const type of overlayIndicators) {
+      if (type.startsWith("pine_")) {
+        const script = customScripts.find((cs) => cs.id === type);
+        if (!script) continue;
+        try {
+          const parsed = parsePineScript(script.code);
+          const evalRes = evaluatePineScript(indCandles, parsed, script.inputs);
+          evalRes.plots.forEach((plot) => {
+            const s = chart.addLineSeries({
+              color: plot.color,
+              lineWidth: (plot.lineWidth as any) || 1.5,
+              priceScaleId: "right",
+              priceLineVisible: false,
+              lastValueVisible: true,
+            });
+            s.setData(plot.values.map((p) => ({ time: p.time as Time, value: p.value })));
+            indicatorSeriesRef.current.set(`${type}_${plot.id}`, s);
+          });
+        } catch {}
+        continue;
+      }
+
       const config = INDICATOR_REGISTRY.find((r) => r.type === type);
       if (!config) continue;
-      const curSettings = settings[type] ?? {};
+      const curSettings: Partial<IndicatorSettings> = settings[type] ?? {};
       if (curSettings.visible === false) continue;
 
       const lineColor = curSettings.color || config.color;

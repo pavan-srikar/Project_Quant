@@ -71,4 +71,11 @@ export const INDICATOR_REGISTRY: IndicatorConfig[] = [
     defaultParams: { period: 14 },
     color: "#ffca28",
   },
+  {
+    type: "VOL",
+    label: "Volume",
+    pane: "overlay",
+    defaultParams: {},
+    color: "#26a69a",
+  },
 ];

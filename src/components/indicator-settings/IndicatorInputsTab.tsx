@@ -215,6 +215,20 @@ export function IndicatorInputsTab({ type, draft, setDraft }: IndicatorInputsTab
           Volume Weighted Average Price is dynamically calculated based on continuous intraday price and volume distributions.
         </div>
       )}
+
+      {/* Volume Inputs */}
+      {type === "VOL" && (
+        <div className="p-3 rounded-lg bg-[#131722] text-neutral-400 leading-relaxed">
+          Displays real-time and historical bar trading volume as color-coded histograms at the bottom of the chart.
+        </div>
+      )}
+
+      {/* Pine Script Inputs */}
+      {type.startsWith("pine_") && (
+        <div className="p-3 rounded-lg bg-[#131722] text-neutral-400 leading-relaxed">
+          Custom Pine Script indicator. Inputs and parameters are evaluated directly from the script definition.
+        </div>
+      )}
     </div>
   );
 }

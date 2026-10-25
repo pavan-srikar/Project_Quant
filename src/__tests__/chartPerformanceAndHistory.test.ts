@@ -15,6 +15,7 @@ import {
 } from "../pages/trading/chart/chartFraming.ts";
 import { getChartPreferencesFromStorage } from "../hooks/useChartPreferences.ts";
 import { areCandlesConnecting, hasDiscontinuity } from "../services/demo/candles.ts";
+import { handlePriceScaleWheel } from "../pages/trading/chart/chartWheelHandler.ts";
 
 describe("Chart Performance & History Preserving Tests", () => {
   it("makeResolveCtx avoids calling series.data() when candles are provided", () => {
@@ -170,6 +171,86 @@ describe("Chart Performance & History Preserving Tests", () => {
     expect(applyOptionsSpy).toHaveBeenCalledWith({ autoScale: false });
   });
 
+  it("handlePriceScaleWheel supports both zooming in and zooming out", () => {
+    let currentMin = 50000;
+    let currentMax = 60000;
+    const setPriceRangeSpy = vi.fn((newPr) => {
+      currentMin = newPr._private__minValue;
+      currentMax = newPr._private__maxValue;
+    });
+
+    const mockPriceRange = {
+      _internal_minValue: () => currentMin,
+      _internal_maxValue: () => currentMax,
+      _internal_isEmpty: () => false,
+      _internal_clone: () => ({ _private__minValue: currentMin, _private__maxValue: currentMax }),
+    };
+
+    const mockChart: any = {
+      priceScale: () => ({
+        width: () => 80,
+        applyOptions: vi.fn(),
+      }),
+      _private__chartWidget: {
+        _internal_model: () => ({
+          _internal_panes: () => [
+            {
+              _internal_rightPriceScale: () => ({
+                _internal_priceRange: () => mockPriceRange,
+                _internal_setMode: vi.fn(),
+                _internal_setPriceRange: setPriceRangeSpy,
+              }),
+              _internal_updateAllSources: vi.fn(),
+            },
+          ],
+          _internal_lightUpdate: vi.fn(),
+        }),
+      },
+    };
+
+    const container = document.createElement("div");
+    vi.spyOn(container, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      right: 1000,
+      bottom: 600,
+      width: 1000,
+      height: 600,
+      x: 0,
+      y: 0,
+      toJSON: () => {},
+    });
+
+    const seriesRef = {
+      current: {
+        coordinateToPrice: vi.fn((_y: number) => 55000),
+      } as any,
+    };
+
+    // Zoom IN (deltaY < 0, scroll up)
+    const zoomInEvent = new WheelEvent("wheel", {
+      clientX: 950,
+      clientY: 300,
+      deltaY: -100,
+    });
+    handlePriceScaleWheel(zoomInEvent, container, mockChart, seriesRef, 2);
+
+    expect(setPriceRangeSpy).toHaveBeenCalled();
+    const rangeAfterZoomIn = currentMax - currentMin;
+    expect(rangeAfterZoomIn).toBeLessThan(10000); // Contracted vertically (zoomed in)
+
+    // Zoom OUT (deltaY > 0, scroll down)
+    const zoomOutEvent = new WheelEvent("wheel", {
+      clientX: 950,
+      clientY: 300,
+      deltaY: 100,
+    });
+    handlePriceScaleWheel(zoomOutEvent, container, mockChart, seriesRef, 2);
+
+    const rangeAfterZoomOut = currentMax - currentMin;
+    expect(rangeAfterZoomOut).toBeGreaterThan(rangeAfterZoomIn); // Expanded vertically (zoomed out)
+  });
+
   it("frameHistoricalViewport preserves price range when preservedPriceRange is provided", () => {
     const applyOptionsSpy = vi.fn();
     const setVisibleLogicalRangeSpy = vi.fn();
@@ -299,6 +380,39 @@ describe("Chart Performance & History Preserving Tests", () => {
     // to = 500 + 4 = 504, from = 504 - 35 = 469
     expect(setVisibleLogicalRangeSpy).toHaveBeenCalledWith({ from: 469, to: 504 });
     expect(scrollToPositionSpy).toHaveBeenCalledWith(4, false);
+  });
+
+  it("frameLatestCandles anchors to lastVisibleTime and preserves barSpacing when data is provided", () => {
+    const applyOptionsSpy = vi.fn();
+    const setVisibleLogicalRangeSpy = vi.fn();
+    const scrollToPositionSpy = vi.fn();
+    const mockChart: any = {
+      timeScale: () => ({
+        applyOptions: applyOptionsSpy,
+        setVisibleLogicalRange: setVisibleLogicalRangeSpy,
+        scrollToPosition: scrollToPositionSpy,
+      }),
+      priceScale: () => ({ applyOptions: vi.fn() }),
+    };
+
+    const data = Array.from({ length: 500 }, (_, i) => ({ time: 1000 + i * 60 }));
+    const preservedTimeScale = {
+      barSpacing: 14,
+      rightOffset: 6,
+      visibleBars: 40,
+      scrollPosition: 2,
+      lastVisibleTime: 1000 + 300 * 60,
+      rightMarginBars: 3,
+    };
+
+    frameLatestCandles(mockChart, 500, false, null, preservedTimeScale, data);
+
+    expect(applyOptionsSpy).toHaveBeenCalledWith({
+      barSpacing: 14,
+      rightOffset: 6,
+    });
+    // rightIdx = 300, to = 300 + 1 + 3 = 304, from = 304 - 40 = 264
+    expect(setVisibleLogicalRangeSpy).toHaveBeenCalledWith({ from: 264, to: 304 });
   });
 
   it("frameHistoricalViewport locks rightmost candle and preserves zoom ratio when preservedTimeScale is provided", () => {
@@ -442,6 +556,12 @@ describe("Chart Performance & History Preserving Tests", () => {
     expect(
       isLoadMoreEligible(state, mockSeries, { from: 0, to: 10 } as any, () => candles, hasPannedRef, interactingRef),
     ).toBe(true);
+
+    // Timeframe switch cooldown active (Date.now() < tfCooldownUntilRef.current)
+    const activeCooldownRef = { current: Date.now() + 5000 };
+    expect(
+      isLoadMoreEligible(state, mockSeries, { from: 0, to: 10 } as any, () => candles, hasPannedRef, interactingRef, activeCooldownRef),
+    ).toBe(false);
   });
 
   it("makeHistoryLoader skips execution when isApplyingHistoryRef is true", () => {
@@ -467,5 +587,86 @@ describe("Chart Performance & History Preserving Tests", () => {
     loader({ from: 0, to: 10 } as any);
     expect(stateRef.current.loading).toBe(false);
     expect(onLoaded).not.toHaveBeenCalled();
+  });
+
+  it("makeHistoryLoader skips execution during timeframe switch cooldown", () => {
+    const onLoaded = vi.fn();
+    const seriesRef = { current: { barsInLogicalRange: () => ({ barsBefore: 5 }) } as any };
+    const stateRef = { current: { loading: false, noMoreData: false, lastFetchedBeforeMs: 0, fetchFromMs: 0 } as any };
+    const timeframeRef = { current: "15m" };
+    const isApplyingHistoryRef = { current: false };
+    const tfCooldownUntilRef = { current: Date.now() + 5000 };
+
+    const loader = makeHistoryLoader(
+      "BTCUSD",
+      timeframeRef,
+      seriesRef,
+      stateRef,
+      onLoaded,
+      () => [{ time: 1000 }],
+      { current: true },
+      { current: false },
+      { current: true },
+      isApplyingHistoryRef,
+      tfCooldownUntilRef,
+    );
+
+    loader({ from: 0, to: 10 } as any);
+    expect(stateRef.current.loading).toBe(false);
+    expect(onLoaded).not.toHaveBeenCalled();
+  });
+
+  it("frameHistoricalViewport accurately aligns rightmost historical candle across timeframe switch without jumping to latest", () => {
+    const setVisibleLogicalRangeSpy = vi.fn();
+    const applyOptionsSpy = vi.fn();
+    const mockChart: any = {
+      timeScale: () => ({
+        setVisibleLogicalRange: setVisibleLogicalRangeSpy,
+        applyOptions: applyOptionsSpy,
+      }),
+    };
+
+    // User is viewing 4h candles from last year (e.g. 1700000000)
+    // 4h bar duration is 14,400s; bar starts at 1700000000, ends at 1700014400
+    const historical4hEndTime = 1700014400;
+    const preservedTimeScale = {
+      barSpacing: 12,
+      rightOffset: 0,
+      visibleBars: 60,
+      scrollPosition: 0,
+      lastVisibleTime: 1700000000,
+      lastVisibleEndTime: historical4hEndTime,
+      rightMarginBars: 0,
+    };
+
+    // Switched to 30m timeframe (1800s per candle)
+    // In 30m, the candle aligning to 1700014400 starts at 1700014400 - 1800 = 1700012600
+    const candles30m = [
+      { time: 1700009000, open: 10, high: 12, low: 9, close: 11 },
+      { time: 1700010800, open: 11, high: 13, low: 10, close: 12 },
+      { time: 1700012600, open: 12, high: 14, low: 11, close: 13 }, // index 2: exact 30m candle
+      { time: 1700014400, open: 13, high: 15, low: 12, close: 14 },
+      // Latest candles (today - e.g. 1730000000)
+      { time: 1730000000, open: 50, high: 55, low: 48, close: 52 },
+    ];
+
+    frameHistoricalViewport(
+      mockChart,
+      candles30m,
+      1700000000,
+      60,
+      false,
+      null,
+      null,
+      preservedTimeScale,
+      null,
+      "30m",
+    );
+
+    // Target right index should be 2 (1700012600), NOT index 4 (1730000000 / today)
+    // to = rightIdx + 1 + rightMargin = 2 + 1 + 0 = 3
+    // from = Math.max(0, 3 - 60) = 0
+    expect(setVisibleLogicalRangeSpy).toHaveBeenCalledWith({ from: 0, to: 3 });
+    expect(applyOptionsSpy).toHaveBeenCalledWith({ barSpacing: 12, rightOffset: 0 });
   });
 });

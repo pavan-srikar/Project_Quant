@@ -123,3 +123,31 @@ This document catalogs non-obvious engineering gotchas, solved bugs, and archite
 - **Trap**: Calling `series.setData()` immediately triggers Lightweight Charts' internal auto-scaler if `autoScale` is enabled, causing a visible 1-frame price scale jump before post-data effects can run.
 - **Fix**: Lock `chart.priceScale("right").applyOptions({ autoScale: false })` and apply `setChartPriceRange(chart, preservedPriceRange)` *synchronously before* `series.setData()`.
 
+### D. Production Minification of Lightweight Charts Private Properties
+- **Trap**: Relying on internal properties like `chart._private__chartWidget` works in development, but fails in Vite production bundles where Lightweight Charts is minified (e.g. `chart.aw` and `pane.$t`), causing price scale extraction to return `null` and fallback to resetting autoscale.
+- **Fix**: Use the public API `candleSeries.coordinateToPrice(0)` (top) and `candleSeries.coordinateToPrice(paneHeight)` (bottom) with `chart.paneSize().height`. This provides an exact, reliable price range across all environments with zero private name dependencies.
+
+### E. Time-Based Rightmost Candle Pinning Across Timeframes
+- **Trap**: When switching timeframes (e.g., 1d to 30m), 1 bar represents 48x more time. Storing and restoring logical bar indices (`from`, `to`) causes the viewport to jump to completely different candles.
+- **Fix**: Capture the exact timestamp of the rightmost visible candle (`lastVisibleTime`) and its margin offset (`rightMarginBars`). On the new timeframe, use `findClosestCandleIndex(data, lastVisibleTime)` to find the matching rightmost bar index, then compute `to = rightIdx + 1 + rightMarginBars` and `from = Math.max(0, to - visibleBars)`. Re-apply `barSpacing` immediately after to preserve the exact zoom ratio.
+
+### F. Series `autoscaleInfoProvider` Locking
+- **Trap**: Lightweight Charts' internal layout passes can re-trigger auto-scale even when `autoScale: false` is set on the price scale.
+- **Fix**: In addition to setting `autoScale: false`, provide a custom `autoscaleInfoProvider` on the series returning `{ priceRange: { minValue: range.min, maxValue: range.max } }`. This makes the scale lock mathematically immutable.
+
+### G. The Cross-Timeframe Historical Jumping Bug ("The Jump to Today")
+- **Symptom**: A user scrolls back months or years into history on a higher timeframe (e.g. 4h in 2023). When switching to a lower timeframe (e.g. 30m), the chart suddenly jumps forward to the latest candle (today) instead of staying pinned on the historical candles.
+- **Root Causes**:
+  1. *Array Decoupling*: `TradingPage.tsx` previously passed `allCandles.length` instead of the live `allCandles` array to `useChartViewportController`. `useChartViewportController` only had `candles` from `useCandles` (the default ~2,000 live edge bars). When viewing older paginated history, `rightBarIdx` was larger than `candles.length`, causing lookups and `getChartTimeScaleState(chart, candles)` to clamp to `candles.length - 1` (today).
+  2. *False Live Edge Trigger*: `isAtLiveEdge` checked `rightBarIdx >= totalBars - 2` without checking whether timestamps were actually live. With clamped indices, `isAtLiveEdge` false-triggered as `true`, setting `fromTime = 0` and `centerTime = 0`, forcing the chart into the live framing path.
+  3. *Resolution Boundary Asymmetry*: Higher-timeframe bars (e.g. 4h) span 14,400 seconds. Anchoring solely to bar start time $T$ displaced the right edge on lower timeframes (e.g. 30m) by up to 7 bars (3.5 hours).
+  4. *In-Flight Stale Data Consumption*: When switching timeframes, if TanStack Query had cached live edge data or an in-flight background query returned before the historical query resolved, `useRealtimeEffects` consumed the anchor against modern data.
+- **Permanent Prevention Rules**:
+  1. Always pass the active `allCandles: Candle[]` array into `useChartViewportController`. Use `displayCandles = allCandles.length > 0 ? allCandles : candles` for all index lookups and `getChartTimeScaleState`.
+  2. Always enforce timestamp sanity: `isHistoricalTime = vrToSec > 0 && (nowSec - vrToSec > 86400 * 3)`. If the visible right edge is more than 3 days in the past, `isAtLiveEdge` MUST be `false`.
+  3. Track `lastVisibleEndTime = candleAtRight.time + TF_SECONDS[oldTf]` and anchor on the new timeframe with `anchorTime = lastVisibleEndTime - TF_SECONDS[newTf]`.
+  4. Guard anchor clearance in `useRealtimeEffects`: verify `Number(chartData[0]!.time) <= anchor.toTime + 86400 * 30`. If incoming data is stale live data while historical fetch is in-flight, retain the anchor and do not reframe until real historical data arrives.
+  5. Apply `ts.applyOptions({ barSpacing, rightOffset })` BEFORE `ts.setVisibleLogicalRange({ from, to })` so options do not overwrite the logical range.
+
+
+

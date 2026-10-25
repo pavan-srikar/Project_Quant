@@ -93,8 +93,45 @@ export function frameLatestCandles(
 ```
 A second pass runs on `requestAnimationFrame` to ensure correct framing after the browser DOM layout pass.
 When switching timeframes on the *same symbol* (whether viewing live edge candles or historical bars), the visible Y-axis price range (e.g. 56k to 100k set by user drag/adjustment) is preserved using `getChartPriceRange()` and restored via `setChartPriceRange()`. Automatic re-scaling (`autoScale: true`) is avoided so the price range remains consistent regardless of the timeframe switch (4H -> 1H, 4H -> 30m, etc.), matching TradingView behavior.
-When switching timeframes while scrolled back into history, `useTradingStore.chartViewportAnchor` preserves the target center timestamp, visible time bounds, and price range. `frameHistoricalViewport` sets the logical range and applies the preserved price range, preventing vertical jumps, live edge flashes, and scale resets.
-At the live edge (`scrollPosition >= -2`), `useChartViewportController` ensures `fromTime = 0`, bypassing historical queries and framing directly via `frameLatestCandles`. In the background, primary timeframes (`15m`, `1h`, `4h`, `1d`) are prefetched via `prefetchCandles` so switches are instant and cached right from the initial load.
+
+### Timeframe Switching & Historical Viewport Pinning Architecture
+
+When a user switches timeframes (e.g. from `4h` to `30m`) while viewing historical candles (e.g. from last year), the system maintains three core visual invariants:
+1. **The rightmost visible historical candle remains fixed in place** at the right edge (or exact margin offset) of the viewport.
+2. **The zoom ratio (`barSpacing`) is preserved** so candles do not collapse or expand violently.
+3. **The Y-axis price range (`{ min, max }`) is locked** without triggering auto-scale.
+4. **The chart NEVER jumps to today's live edge** when looking at past history.
+
+#### The 5 Invariants Making Timeframe Switching Work (Do Not Alter)
+
+1. **Array Synchronization (`TradingPage.tsx` $\to$ `useChartViewportController.ts`)**:
+   - `TradingPage` MUST pass the live `allCandles: Candle[]` array to `useChartViewportController`, NOT just `allCandles.length`.
+   - `allCandles` contains both the initial limit and older historical bars prepended by `chartHistoryLoader.ts`.
+   - The controller determines `displayCandles = allCandles.length > 0 ? allCandles : candles`.
+   - Indexing `displayCandles[rightBarIdx]` guarantees the exact historical candle is retrieved, rather than clamping to the end of a truncated live array.
+
+2. **Timestamp-Based Live Edge Predicate**:
+   - Never determine `isAtLiveEdge` by array index alone (which can be desynchronized or clamped).
+   - `useChartViewportController` computes `isHistoricalTime = vrToSec > 0 && (nowSec - vrToSec > 86400 * 3)`.
+   - If the visible right edge is more than 3 days in the past, `isAtLiveEdge` is **strictly false**.
+   - `anchor.fromTime`, `anchor.toTime`, and `anchor.centerTime` remain set to the historical timestamps, and `historicalTargetTime` is passed to the query.
+
+3. **Time-Boundary Invariance Across Resolutions (`lastVisibleEndTime`)**:
+   - A candle on higher timeframe $TF_1$ (e.g. 4h) spans $[T, T + TF_1]$. The right edge of that candle is $T + TF_1$.
+   - `getChartTimeScaleState` and `useChartViewportController` capture `lastVisibleEndTime = candleAtRight.time + TF_SECONDS[oldTf]`.
+   - In `frameHistoricalViewport`, the target open time for the new timeframe $TF_2$ is computed as:
+     $$\text{anchorTime} = \text{lastVisibleEndTime} - \text{TF\_SECONDS}[newTf]$$
+   - This guarantees that whether switching from 4h $\to$ 30m, 1d $\to$ 1h, or 15m $\to$ 4h, the rightmost edge of the candle aligns to the exact second.
+
+4. **In-Flight Query Protection in `useRealtimeEffects.ts`**:
+   - When switching timeframes, TanStack Query fetches the new timeframe's historical window.
+   - If an in-flight background query or live tick arrives before this query resolves, `useRealtimeEffects` checks:
+     `isHistoricalData = Number(chartData[0]!.time) <= anchor.toTime + 86400 * 30`.
+   - If incoming `chartData` is stale live edge data, `useRealtimeEffects` **retains the anchor in the store** and does NOT frame to live. Only when genuine historical data arrives does it execute `frameHistoricalViewport` and clear the anchor.
+
+5. **Options Ordering in Lightweight Charts**:
+   - In `chartFraming.ts` (`frameHistoricalViewport` and `frameLatestCandles`), `timeScale.applyOptions({ barSpacing, rightOffset })` must execute **before** `timeScale.setVisibleLogicalRange({ from, to })`.
+   - Applying options after setting the logical range causes Lightweight Charts to re-compute logical boundaries, displacing the pinned candle. Applying options first ensures the explicit logical range takes precedence.
 
 ---
 
@@ -133,7 +170,14 @@ To prevent artificial candle corruption when viewing historical datasets:
 1. **Historical Target Single-Consumption**:
    - `pendingHistoricalTargetRef.current` in `useRealtimeEffects.ts` is cleared (`= null`) immediately upon applying `frameHistoricalViewport`.
    - Prevents recursive re-framing loops where incoming data triggers `useRealtimeEffects`, which re-frames the target, triggering range changes, and re-fetching data in an endless 500ms cycle.
-2. **Sub-Chart Indicator Interaction Debounce**:
+2. **Timeframe Switch Cooldown Window & Interaction Reset (`useChartLifecycle.ts`)**:
+   - On timeframe change, `isUserInteractingRef.current` is immediately reset to `false` and any active wheel debounce timers are cleared.
+   - `tfCooldownUntilRef.current = Date.now() + 1500` enforces a 1500ms moratorium during which `isLoadMoreEligible` and `makeHistoryLoader` completely suppress historical pagination.
+   - Prevents stale wheel/pointer interactions from triggering infinite backward pagination loops when the newly framed viewport places candles near the left edge.
+3. **Fresh User Gesture Invariant on Pagination (`onLoaded`)**:
+   - When a historical chunk arrives, `prependedCount` is calculated from the exact count of unique bars strictly older than the series' oldest bar.
+   - `isUserInteractingRef.current` is reset to `false` upon injecting older bars. Each pagination step requires a fresh, deliberate user gesture (scroll wheel flick or pointer drag) and cannot auto-chain into unattended recursive loops.
+4. **Sub-Chart Indicator Interaction Debounce**:
    - In `useIndicatorChart.ts`, mouse wheel events on sub-chart oscillator panes set `isSubInteractingRef.current = true` with a 1500ms debounce reset.
    - Prevents sub-chart interactions from permanently latching and causing crosshair jitter or reciprocal range feedback to the main chart.
 

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { IndicatorSettingsModal } from "../../../components/IndicatorSettingsModal.tsx";
 import { useIndicatorSettings } from "../../../hooks/useIndicatorSettings.ts";
 import { INDICATOR_REGISTRY, type IndicatorType } from "../../../lib/indicators.ts";
+import { getCustomPineIndicators } from "../../../lib/pinescript";
 import { IndicatorContextMenu } from "./IndicatorContextMenu.tsx";
 import { IndicatorPane } from "./IndicatorPane.tsx";
 import type {
@@ -25,14 +26,20 @@ export function BottomIndicatorsPanel({
 
   const [settingsModalType, setSettingsModalType] = useState<IndicatorType | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
-
   // Filter active indicators to only those designated for below / sub-chart
   const activeBelow = useMemo(() => {
+    const customScripts = getCustomPineIndicators();
     return activeIndicators.filter((t) => {
+      if (t.startsWith("pine_")) {
+        const s = customScripts.find((cs) => cs.id === t);
+        return s ? !s.overlay : false;
+      }
       const config = INDICATOR_REGISTRY.find((r) => r.type === t);
       return config && config.pane === "below";
     });
   }, [activeIndicators]);
+
+  const fallbackSettings = { color: "#2962ff", visible: true };
 
   return (
     <div className="h-full w-full flex flex-col bg-[#131722] relative overflow-hidden">
@@ -49,7 +56,7 @@ export function BottomIndicatorsPanel({
               key={type}
               type={type}
               candles={candles}
-              settings={allSettings[type] ?? {}}
+              settings={allSettings[type] ?? fallbackSettings}
               isDark={isDark}
               timeframe={timeframe}
               mainChart={mainChart}
@@ -76,7 +83,7 @@ export function BottomIndicatorsPanel({
         <IndicatorSettingsModal
           isOpen={true}
           type={settingsModalType}
-          settings={allSettings[settingsModalType]}
+          settings={allSettings[settingsModalType] ?? fallbackSettings}
           onSave={(type, updates) => {
             updateIndicatorSettings(type, updates);
             setSettingsModalType(null);

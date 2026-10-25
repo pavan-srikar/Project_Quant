@@ -8,8 +8,8 @@ This document covers the technical architecture, mathematical calculations, rend
 
 | Category | Indicators | Target Viewport | Implementation |
 | :--- | :--- | :--- | :--- |
-| **Overlay** | SMA, EMA, VWAP, Bollinger Bands (BOLL) | Main Chart Pane (`ChartPanel`) | Rendered directly on `mainChart` as `LineSeries` or custom shaded primitives (`bands-primitive.ts`). |
-| **Sub-Chart** (Oscillators) | RSI, MACD, Stochastic (STOCH), ATR, CCI, Williams %R (WR) | Bottom Oscillator Pane (`BottomIndicatorsPanel`) | Rendered in dedicated Lightweight Charts instances synchronized horizontally with `mainChart`. |
+| **Overlay** | SMA, EMA, VWAP, Bollinger Bands (BOLL), Volume (VOL), Custom Pine Scripts (`overlay=true`) | Main Chart Pane (`ChartPanel`) | Rendered directly on `mainChart` as `LineSeries`, `HistogramSeries`, or custom shaded primitives (`bands-primitive.ts`). |
+| **Sub-Chart** (Oscillators) | RSI, MACD, Stochastic (STOCH), ATR, CCI, Williams %R (WR), Custom Pine Scripts (`overlay=false`) | Bottom Oscillator Pane (`BottomIndicatorsPanel`) | Rendered in dedicated Lightweight Charts instances synchronized horizontally with `mainChart`. |
 
 ---
 
@@ -106,4 +106,42 @@ Active indicators (both overlay lines and sub-chart oscillators) are persisted a
    - Adding/removing indicators or applying layout templates automatically updates the persistent store.
 3. **Smart Bottom Panel Uncollapse (`useTradingLayoutResize.ts`)**:
    - If no explicit panel collapse state is set in `localStorage`, the bottom panel automatically uncollapses if any active indicator belongs to the below-chart pane, ensuring restored indicators are visible immediately upon refresh.
+
+---
+
+## 6. Custom Pine Script Engine (`src/lib/pinescript/`)
+
+Users can import TradingView Pine Script (v4/v5) files (`.pine`, `.txt`) or paste script code directly into the terminal:
+
+```
+src/lib/pinescript/
+├── index.ts        # Central re-export of parser, evaluator, storage, samples
+├── types.ts        # AST structures, plot/hline representations, input definitions
+├── parser.ts       # Parses indicator declaration, inputs, assignments, and series expressions
+├── evaluator.ts    # Mathematical evaluation engine for series functions & expressions
+├── storage.ts      # LocalStorage persistence & cross-component event bus
+└── samples.ts      # Built-in templates: Dual SMA, Custom RSI, ATR Bands, MACD Momentum
+```
+
+### Supported Pine Script Directives & Functions
+- **Declarations**: `indicator("Name", overlay=true/false)`, `study("Name", overlay=true/false)`.
+- **Inputs**: `input.int(default, "Title")`, `input.float()`, `input.bool()`, `input.color()`, `input()`.
+- **Series Functions**: `ta.sma()`, `sma()`, `ta.ema()`, `ema()`, `ta.rsi()`, `rsi()`, `ta.atr()`, `atr()`, `ta.highest()`, `highest()`, `ta.lowest()`, `lowest()`.
+- **Rendering Directives**:
+  - `plot(series, title="...", color=..., linewidth=...)`
+  - `hline(price, title="...", color=..., linestyle=...)`
+- **Arithmetic**: Full numeric expression support (`+`, `-`, `*`, `/`, ternary conditions `condition ? val1 : val2`).
+- **Pane Resolution**:
+  - Scripts with `overlay=true` render directly as dynamic LineSeries on `mainChart` via `useIndicators.ts`.
+  - Scripts with `overlay=false` dynamically mount as stacked sub-chart panes in `BottomIndicatorsPanel.tsx`.
+
+---
+
+## 7. Indicator Menu UI & Search (`src/pages/trading/chart-toolbar/IndicatorMenu.tsx`)
+
+1. **Fixed-Length Scrollable Viewport**: The menu has a capped height (`max-h-72 overflow-y-auto`) so dozens of indicators and imported custom scripts can be browsed without overflowing the screen.
+2. **Real-Time Search Bar**: Instant text filtering by indicator name, acronym (e.g. "RSI", "VOL"), or description.
+3. **Category Filtering**: Tabs filter between "All", "Overlay", "Oscillators", and "Pine" custom indicators.
+4. **Pine Script Import Action**: "Import Pine Script" button opens `PineScriptImportModal.tsx` allowing drag-and-drop file upload, template selection, and syntax-checked code compilation.
+5. **Volume Control**: Volume (`VOL`) is fully integrated into the indicator catalog, allowing users to toggle it on/off just like any other technical indicator.
 

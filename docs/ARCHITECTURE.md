@@ -151,6 +151,14 @@ Every file in `src/` is strictly under 300 lines with a single, clear responsibi
 - `oscillators.ts` — Pure implementations of RSI, MACD, Stochastic, ATR, CCI, and Williams %R.
 - `bands.ts` — Pure implementation of Bollinger Bands (middle, upper, lower).
 
+#### Pine Script Engine (`src/lib/pinescript/`)
+- `index.ts` — Central barrel facade re-exporting parser, evaluator, storage, and samples.
+- `types.ts` — Type definitions for custom Pine indicators, parsed plots, hlines, and input configurations.
+- `parser.ts` — Lightweight TradingView Pine Script syntax parser supporting `indicator()`, `study()`, `overlay`, inputs, assignments, and series functions.
+- `evaluator.ts` — Mathematical execution engine evaluating parsed AST statements (SMA, EMA, RSI, ATR, Highest, Lowest) on candlestick data.
+- `storage.ts` — LocalStorage persistence and event synchronization (`custom-pine-indicators-updated`) for user scripts.
+- `samples.ts` — Pre-loaded built-in Pine Script templates (Dual SMA Crossover, Custom RSI, ATR Trailing Bands, MACD Momentum).
+
 #### Chart Plugins (`src/lib/chart-plugins/`)
 ##### Bands Indicator (`src/lib/chart-plugins/bands-indicator/`)
 - `bands-primitive.ts` — Custom Lightweight Charts primitive rendering shaded Bollinger Bands.
@@ -285,7 +293,8 @@ Every file in `src/` is strictly under 300 lines with a single, clear responsibi
 - `SymbolPicker.tsx` — Active symbol trigger button opening symbol search modal.
 - `TimeframeSelector.tsx` — Quick-select buttons for common timeframes (1m, 5m, 15m, 1h, 4h, 1d).
 - `ChartTypeSelector.tsx` — Dropdown selecting chart style (Candles, Line, Heikin Ashi).
-- `IndicatorMenu.tsx` — Dropdown toggling overlay and subchart indicators.
+- `IndicatorMenu.tsx` — Dropdown toggling overlay and subchart indicators with fixed height scrollable list, search filtering, category tabs, and Pine Script import trigger.
+- `PineScriptImportModal.tsx` — Modal dialog for importing, pasting, editing, testing, and managing custom Pine Script indicators.
 - `DrawingToolsDropdown.tsx` — Dropdown menu for mobile or compact drawing tool access.
 - `PluginsDropdown.tsx` — Dropdown enabling optional plugins (session breaks, delta tooltip).
 - `RightPanelSelector.tsx` — Toggle buttons switching right sidebar between Watchlist and Order Panel.

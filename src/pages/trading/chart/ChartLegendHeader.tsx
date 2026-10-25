@@ -1,6 +1,7 @@
 import { Clock, Eye, EyeOff, Sliders, X } from "lucide-react";
 import type { IndicatorSettings } from "../../../hooks/useIndicatorSettings.ts";
 import type { IndicatorType } from "../../../lib/indicators.ts";
+import { getCustomPineIndicators } from "../../../lib/pinescript";
 import { cn } from "../../../lib/utils.ts";
 import type { Timeframe } from "../constants.ts";
 import type { OhlcvLegend, TickData } from "./types.ts";
@@ -85,7 +86,6 @@ export function BidAskRow({
     </div>
   );
 }
-
 function getOverlayLabel(
   type: IndicatorType,
   settings?: IndicatorSettings,
@@ -95,6 +95,11 @@ function getOverlayLabel(
   if (type === "BOLL")
     return `BB ${settings?.period ?? 20} ${settings?.stdDev ?? 2} close`;
   if (type === "VWAP") return `VWAP`;
+  if (type === "VOL") return `Volume`;
+  if (type.startsWith("pine_")) {
+    const custom = getCustomPineIndicators().find((c) => c.id === type);
+    return custom?.name || "Pine Script";
+  }
   return type;
 }
 

@@ -32,6 +32,20 @@ export function useChartLifecycle(params: ChartLifecycleParams) {
   const onChartReadyRef = useRef(onChartReady);
   onChartReadyRef.current = onChartReady;
 
+  const isUserInteractingRef = useRef(false);
+  const isApplyingHistoryRef = useRef(false);
+  const tfCooldownUntilRef = useRef(0);
+  const wheelTimerRef = useRef<any>(null);
+
+  useEffect(() => {
+    isUserInteractingRef.current = false;
+    tfCooldownUntilRef.current = Date.now() + 1500;
+    if (wheelTimerRef.current) {
+      clearTimeout(wheelTimerRef.current);
+      wheelTimerRef.current = null;
+    }
+  }, [timeframe]);
+
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -54,6 +68,8 @@ export function useChartLifecycle(params: ChartLifecycleParams) {
     );
     candleSeriesRef.current = candleSeries;
     volumeSeriesRef.current = volumeSeries;
+    (chart as any).__candleSeries = candleSeries;
+    (window as any).__candleSeries = candleSeries;
 
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
@@ -91,9 +107,6 @@ export function useChartLifecycle(params: ChartLifecycleParams) {
     });
     drawingManagerRef.current = drawingManager;
 
-    const isUserInteractingRef = { current: false };
-    const isApplyingHistoryRef = { current: false };
-
     let historyLoadCancelled = false;
     const handleRangeChange = makeHistoryLoader(
       selectedSymbol,
@@ -102,6 +115,7 @@ export function useChartLifecycle(params: ChartLifecycleParams) {
       loadMoreRef,
       (bars, isForward = false) => {
         if (historyLoadCancelled || bars.length === 0 || isChangingTfRef?.current) return;
+        if (Date.now() < tfCooldownUntilRef.current) return;
         setHistoricalExtra((prev) => {
           const map = new Map<number, any>();
           for (const b of bars) map.set(b.time, b);
@@ -110,15 +124,30 @@ export function useChartLifecycle(params: ChartLifecycleParams) {
           }
           return Array.from(map.values()).sort((a, b) => a.time - b.time);
         });
+        isUserInteractingRef.current = false;
         if (!isForward) {
           const currentRange = chart.timeScale().getVisibleLogicalRange();
           if (currentRange) {
+            const seriesCandles = allCandlesRef.current;
+            const oldestSec = seriesCandles.length > 0 && seriesCandles[0] ? Number(seriesCandles[0].time) : 0;
+            let prepended = 0;
+            if (oldestSec > 0) {
+              const seen = new Set<number>();
+              for (const b of bars) {
+                const t = Number(b.time);
+                if (t > 0 && t < oldestSec && !seen.has(t)) {
+                  seen.add(t);
+                  prepended++;
+                }
+              }
+            }
+            const shift = prepended > 0 ? prepended : bars.length;
             isApplyingHistoryRef.current = true;
             requestAnimationFrame(() => {
               try {
                 chart.timeScale().setVisibleLogicalRange({
-                  from: currentRange.from + bars.length,
-                  to: currentRange.to + bars.length,
+                  from: currentRange.from + shift,
+                  to: currentRange.to + shift,
                 });
               } catch {}
               requestAnimationFrame(() => {
@@ -133,6 +162,7 @@ export function useChartLifecycle(params: ChartLifecycleParams) {
       isChangingTfRef,
       isUserInteractingRef,
       isApplyingHistoryRef,
+      tfCooldownUntilRef,
     );
     const onRangeChange = (range: LogicalRange | null) => {
       if (!range || isChangingTfRef?.current || isApplyingHistoryRef.current) return;
@@ -173,29 +203,16 @@ export function useChartLifecycle(params: ChartLifecycleParams) {
 
     const container = containerRef.current;
     const onWheel = createChartWheelHandler(
-      container,
-      chart,
-      candleSeriesRef,
-      pipDigits,
-      loadMoreRef,
-      handleRangeChange,
+      container, chart, candleSeriesRef, pipDigits, loadMoreRef, handleRangeChange,
     );
     container.addEventListener("wheel", onWheel, { capture: true, passive: false });
-    let wheelTimer: any = null;
-    const onPointerDown = () => {
-      isUserInteractingRef.current = true;
-      hasUserPannedOrZoomedRef.current = true;
-    };
-    const onPointerUp = () => {
-      isUserInteractingRef.current = false;
-    };
+    const onPointerDown = () => { isUserInteractingRef.current = true; hasUserPannedOrZoomedRef.current = true; };
+    const onPointerUp = () => { isUserInteractingRef.current = false; };
     const onWheelInteraction = () => {
       isUserInteractingRef.current = true;
       hasUserPannedOrZoomedRef.current = true;
-      if (wheelTimer) clearTimeout(wheelTimer);
-      wheelTimer = setTimeout(() => {
-        isUserInteractingRef.current = false;
-      }, 1500);
+      if (wheelTimerRef.current) clearTimeout(wheelTimerRef.current);
+      wheelTimerRef.current = setTimeout(() => { isUserInteractingRef.current = false; }, 1500);
     };
     container.addEventListener("pointerdown", onPointerDown, { passive: true });
     window.addEventListener("pointerup", onPointerUp, { passive: true });
@@ -210,7 +227,10 @@ export function useChartLifecycle(params: ChartLifecycleParams) {
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("pointercancel", onPointerUp);
       container.removeEventListener("wheel", onWheelInteraction);
-      if (wheelTimer) clearTimeout(wheelTimer);
+      if (wheelTimerRef.current) {
+        clearTimeout(wheelTimerRef.current);
+        wheelTimerRef.current = null;
+      }
       historyLoadCancelled = true;
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(onRangeChange);
       ro.disconnect();
@@ -237,16 +257,8 @@ export function useChartLifecycle(params: ChartLifecycleParams) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    isDark,
-    pipDigits,
-    colors.background,
-    colors.text,
-    colors.grid,
-    colors.crosshair,
-    colors.watermark,
-    colors.up,
-    colors.down,
-    selectedSymbol,
+    isDark, pipDigits, colors.background, colors.text, colors.grid,
+    colors.crosshair, colors.watermark, colors.up, colors.down, selectedSymbol,
   ]);
 
   useEffect(() => {

@@ -92,9 +92,15 @@ export function useChartStateRefs(selectedSymbol: string, timeframe: Timeframe) 
         lastVisibleTimeRangeRef.current = null;
         pendingHistoricalTargetRef.current = null;
       }
-      if (chartRef.current) {
-        const pr = getChartPriceRange(chartRef.current);
+      if (anchor?.priceRange) {
+        preservedPriceRangeRef.current = { symbol: selectedSymbol, ...anchor.priceRange };
+      } else if (chartRef.current) {
+        const pr = getChartPriceRange(chartRef.current, candleSeriesRef.current);
         if (pr) preservedPriceRangeRef.current = { symbol: selectedSymbol, ...pr };
+      }
+      if (anchor?.timeScaleState) {
+        preservedTimeScaleRef.current = { symbol: selectedSymbol, state: anchor.timeScaleState };
+      } else if (chartRef.current) {
         const ts = getChartTimeScaleState(chartRef.current);
         if (ts) preservedTimeScaleRef.current = { symbol: selectedSymbol, state: ts };
       }

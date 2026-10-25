@@ -4,6 +4,8 @@ import { INDICATOR_REGISTRY, type IndicatorType } from "../../../lib/indicators.
 import { cn } from "../../../lib/utils.ts";
 import type { ContextMenuState, IndicatorCalculatedData } from "./types.ts";
 
+import { getCustomPineIndicators } from "../../../lib/pinescript";
+
 export interface IndicatorHeaderProps {
   type: IndicatorType;
   settings?: IndicatorSettings;
@@ -21,6 +23,10 @@ function getIndicatorTitle(type: IndicatorType, settings?: IndicatorSettings): s
   if (type === "STOCH") return `Stoch ${settings?.kPeriod ?? 14} ${settings?.dPeriod ?? 3}`;
   if (type === "CCI") return `CCI ${settings?.period ?? 20}`;
   if (type === "WR") return `%R ${settings?.period ?? 14}`;
+  if (type.startsWith("pine_")) {
+    const custom = getCustomPineIndicators().find((c) => c.id === type);
+    return custom?.name || "Pine Script";
+  }
   return type;
 }
 
@@ -80,8 +86,13 @@ function getIndicatorValues(
       const v = findVal(indicatorData.data);
       return v != null ? [{ label: "", value: v.toFixed(2), color: "#2962ff" }] : [];
     }
-    default:
+    default: {
+      if (indicatorData && Array.isArray((indicatorData as any).data)) {
+        const v = findVal((indicatorData as any).data);
+        return v != null ? [{ label: "", value: v.toFixed(2), color: "#2962ff" }] : [];
+      }
       return [];
+    }
   }
 }
 

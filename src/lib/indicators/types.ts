@@ -39,7 +39,9 @@ export type IndicatorType =
   | "STOCH"
   | "VWAP"
   | "CCI"
-  | "WR";
+  | "WR"
+  | "VOL"
+  | (string & {});
 
 export type IndicatorPane = "overlay" | "below";
 
@@ -49,4 +51,7 @@ export interface IndicatorConfig {
   pane: IndicatorPane;
   defaultParams: Record<string, number>;
   color: string;
+  isCustom?: boolean;
+  pineScript?: string;
 }
+

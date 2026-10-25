@@ -73,8 +73,11 @@ export function useChartOptionSync({
 
   // 3. Volume visibility
   useEffect(() => {
-    volumeSeriesRef.current?.applyOptions({ visible: chartPrefs.showVolume });
-  }, [chartPrefs.showVolume, chartEpoch, volumeSeriesRef]);
+    const isVolActive = chartPrefs.activeIndicators
+      ? chartPrefs.activeIndicators.includes("VOL")
+      : chartPrefs.showVolume;
+    volumeSeriesRef.current?.applyOptions({ visible: isVolActive });
+  }, [chartPrefs.showVolume, chartPrefs.activeIndicators, chartEpoch, volumeSeriesRef]);
 
   // 4. Grid visibility
   useEffect(() => {

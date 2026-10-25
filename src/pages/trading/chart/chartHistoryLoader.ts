@@ -29,7 +29,9 @@ export function isLoadMoreEligible(
   getCandles?: () => readonly any[],
   hasUserPannedOrZoomedRef?: { current: boolean },
   isUserInteractingRef?: { current: boolean },
+  tfCooldownUntilRef?: { current: number },
 ): boolean {
+  if (tfCooldownUntilRef && Date.now() < tfCooldownUntilRef.current) return false;
   if (hasUserPannedOrZoomedRef && !hasUserPannedOrZoomedRef.current) return false;
   if (isUserInteractingRef && !isUserInteractingRef.current) return false;
   if (state.loading || state.noMoreData) return false;
@@ -112,7 +114,9 @@ export function isLoadForwardEligible(
   getCandles?: () => readonly any[],
   hasUserPannedOrZoomedRef?: { current: boolean },
   isUserInteractingRef?: { current: boolean },
+  tfCooldownUntilRef?: { current: number },
 ): boolean {
+  if (tfCooldownUntilRef && Date.now() < tfCooldownUntilRef.current) return false;
   if (hasUserPannedOrZoomedRef && !hasUserPannedOrZoomedRef.current) return false;
   if (isUserInteractingRef && !isUserInteractingRef.current) return false;
   if (state.loadingForward) return false;
@@ -161,10 +165,12 @@ export function makeHistoryLoader(
   isChangingTfRef?: { current: boolean },
   isUserInteractingRef?: { current: boolean },
   isApplyingHistoryRef?: { current: boolean },
+  tfCooldownUntilRef?: { current: number },
 ): (range: LogicalRange | null) => void {
   let lastFetchTs = 0;
   return (range) => {
     if (isChangingTfRef?.current || isApplyingHistoryRef?.current) return;
+    if (tfCooldownUntilRef && Date.now() < tfCooldownUntilRef.current) return;
     const series = seriesRef.current;
     if (!range || !series) return;
     const now = Date.now();
@@ -172,7 +178,7 @@ export function makeHistoryLoader(
     const state = stateRef.current;
     const reqTf = timeframeRef.current;
 
-    if (isLoadMoreEligible(state, series, range, getCandles, hasUserPannedOrZoomedRef, isUserInteractingRef)) {
+    if (isLoadMoreEligible(state, series, range, getCandles, hasUserPannedOrZoomedRef, isUserInteractingRef, tfCooldownUntilRef)) {
       const toMs =
         state.fetchFromMs > 0 ? state.fetchFromMs : getSeriesOldestMs(series, getCandles);
       if (toMs === 0) return;
@@ -182,17 +188,19 @@ export function makeHistoryLoader(
       state.fetchFromMs = 0;
       fetchOlderRange(symbol, reqTf, toMs, state, (bars) => {
         if (timeframeRef.current !== reqTf || isChangingTfRef?.current) return;
+        if (tfCooldownUntilRef && Date.now() < tfCooldownUntilRef.current) return;
         onLoaded(bars, false);
       });
       return;
     }
 
-    if (isLoadForwardEligible(state, series, range, reqTf, getCandles, hasUserPannedOrZoomedRef, isUserInteractingRef)) {
+    if (isLoadForwardEligible(state, series, range, reqTf, getCandles, hasUserPannedOrZoomedRef, isUserInteractingRef, tfCooldownUntilRef)) {
       const fromMs = getSeriesNewestMs(series, getCandles);
       if (fromMs === 0) return;
       lastFetchTs = now;
       fetchNewerRange(symbol, reqTf, fromMs, state, (bars) => {
         if (timeframeRef.current !== reqTf || isChangingTfRef?.current) return;
+        if (tfCooldownUntilRef && Date.now() < tfCooldownUntilRef.current) return;
         onLoaded(bars, true);
       });
     }

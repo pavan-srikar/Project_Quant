@@ -6,6 +6,7 @@ import {
   useChartPreferences,
 } from "../../hooks/useChartPreferences.ts";
 import { useAiTraderEnabled, useSymbols } from "../../services/queries.ts";
+import type { Candle } from "../../services/schemas.ts";
 import { useTradingStore } from "../../services/store.tsx";
 import { MobileTradingSection } from "./MobileTradingSection.tsx";
 import { TradingCenterView } from "./TradingCenterView.tsx";
@@ -41,14 +42,14 @@ export function TradingPage() {
   useEffect(() => {
     (window as any).__mainChart = mainChart;
   }, [mainChart]);
-  const [allCandles, setAllCandles] = useState<any[]>([]);
+  const [allCandles, setAllCandles] = useState<Candle[]>([]);
 
   // Viewport & timeframe controller
   const { timeframe, onTimeframeChange, candles, resetToLive } =
     useChartViewportController(
       selectedSymbol,
       mainChart,
-      allCandles.length,
+      allCandles,
       replayVersion,
     );
 

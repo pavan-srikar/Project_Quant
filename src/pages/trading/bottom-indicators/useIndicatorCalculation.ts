@@ -10,6 +10,11 @@ import {
   williamsR,
   type IndicatorType,
 } from "../../../lib/indicators.ts";
+import {
+  getCustomPineIndicators,
+  parsePineScript,
+  evaluatePineScript,
+} from "../../../lib/pinescript";
 import { toIndicatorCandles } from "../utils.ts";
 import type { IndicatorCalculatedData } from "./types.ts";
 
@@ -61,8 +66,19 @@ export function useIndicatorCalculation(
         const pts = williamsR(indCandles, period);
         return { type: "WR", period, data: pts };
       }
-      default:
+      default: {
+        if (selectedType.startsWith("pine_")) {
+          const custom = getCustomPineIndicators().find((c) => c.id === selectedType);
+          if (custom) {
+            const parsed = parsePineScript(custom.code);
+            const evalRes = evaluatePineScript(indCandles, parsed, custom.inputs);
+            const firstPlot = evalRes.plots[0];
+            const pts = firstPlot ? firstPlot.values : [];
+            return { type: "WR", period: 14, data: pts };
+          }
+        }
         return null;
+      }
     }
   }, [
     indCandles,

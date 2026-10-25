@@ -24,15 +24,17 @@ export function handlePriceScaleWheel(
   e.stopPropagation();
   e.stopImmediatePropagation();
 
-  const currentPr = getChartPriceRange(chart);
+  const currentPr = getChartPriceRange(chart, seriesRef.current ?? undefined);
   if (!currentPr) return;
   const { min, max } = currentPr;
   const y = e.clientY - rect.top;
   const rawP0 = seriesRef.current?.coordinateToPrice(y);
+  const center = (min + max) * 0.5;
+  const margin = (max - min) * 0.05;
   const p0: number =
     rawP0 != null && Number.isFinite(rawP0 as unknown as number)
-      ? (rawP0 as unknown as number)
-      : (min + max) * 0.5;
+      ? Math.max(min + margin, Math.min(max - margin, rawP0 as unknown as number))
+      : center;
 
   const factor = Math.max(0.7, Math.min(1.4, Math.exp(e.deltaY * 0.0015)));
   const newMin = p0 - (p0 - min) * factor;
@@ -40,7 +42,7 @@ export function handlePriceScaleWheel(
   const minMove = getMinMove(pipDigits);
   if (newMax - newMin < minMove * 5 || newMax - newMin > (max - min) * 100) return;
 
-  setChartPriceRange(chart, { min: newMin, max: newMax });
+  setChartPriceRange(chart, { min: newMin, max: newMax }, seriesRef.current ?? undefined);
 }
 
 export function createChartWheelHandler(

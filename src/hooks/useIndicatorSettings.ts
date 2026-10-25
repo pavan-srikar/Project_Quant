@@ -95,6 +95,11 @@ export const DEFAULT_INDICATOR_SETTINGS: Record<IndicatorType, IndicatorSettings
     lineWidth: 1.5,
     visible: true,
   },
+  VOL: {
+    color: "#26a69a",
+    lineWidth: 1,
+    visible: true,
+  },
 };
 
 const STORAGE_KEY = "project_quant_indicator_settings";
@@ -108,8 +113,9 @@ export function getStoredIndicatorSettings(): Record<IndicatorType, IndicatorSet
     const parsed = JSON.parse(raw);
     const result = { ...DEFAULT_INDICATOR_SETTINGS };
     for (const key of Object.keys(DEFAULT_INDICATOR_SETTINGS) as IndicatorType[]) {
-      if (parsed[key]) {
-        result[key] = { ...DEFAULT_INDICATOR_SETTINGS[key], ...parsed[key] };
+      const def = DEFAULT_INDICATOR_SETTINGS[key];
+      if (def && parsed[key]) {
+        result[key] = { ...def, ...parsed[key] };
       }
     }
     return result;
@@ -123,34 +129,37 @@ export function saveIndicatorSettings(
   updates: Partial<IndicatorSettings>,
 ): Record<IndicatorType, IndicatorSettings> {
   const current = getStoredIndicatorSettings();
-  const next = {
+  const cur = current[type] ?? { color: "#2962ff", visible: true };
+  const updatedSetting: IndicatorSettings = {
+    ...cur,
+    ...updates,
+  };
+  const next: Record<IndicatorType, IndicatorSettings> = {
     ...current,
-    [type]: {
-      ...current[type],
-      ...updates,
-    },
+    [type]: updatedSetting,
   };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   } catch {
     // ignore
   }
-  window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: { type, settings: next[type] } }));
+  window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: { type, settings: updatedSetting } }));
   return next;
 }
 
 export function resetIndicatorSettings(type: IndicatorType): Record<IndicatorType, IndicatorSettings> {
   const current = getStoredIndicatorSettings();
-  const next = {
+  const def = DEFAULT_INDICATOR_SETTINGS[type] ?? { color: "#2962ff", visible: true };
+  const next: Record<IndicatorType, IndicatorSettings> = {
     ...current,
-    [type]: { ...DEFAULT_INDICATOR_SETTINGS[type] },
+    [type]: { ...def },
   };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   } catch {
     // ignore
   }
-  window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: { type, settings: next[type] } }));
+  window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: { type, settings: def } }));
   return next;
 }
 

@@ -101,14 +101,9 @@ export function useRealtimeEffects(params: RealtimeEffectsParams) {
       (prevKey && prevKey.startsWith(`${selectedSymbol}:`) && prevKey !== loadKey)
     );
 
-    if (
-      isTfChange &&
-      (!preservedPriceRangeRef?.current || preservedPriceRangeRef.current.symbol !== selectedSymbol)
-    ) {
-      const pr = getChartPriceRange(chartRef.current);
-      if (pr && preservedPriceRangeRef) {
-        preservedPriceRangeRef.current = { symbol: selectedSymbol, ...pr };
-      }
+    if (isTfChange && (!preservedPriceRangeRef?.current || preservedPriceRangeRef.current.symbol !== selectedSymbol)) {
+      const pr = getChartPriceRange(chartRef.current, series);
+      if (pr && preservedPriceRangeRef) preservedPriceRangeRef.current = { symbol: selectedSymbol, ...pr };
     }
 
     // Capture target before setData fires timescale listeners that could clear state
@@ -132,23 +127,23 @@ export function useRealtimeEffects(params: RealtimeEffectsParams) {
 
     const anchorPr = isAnchorMatch ? anchor?.priceRange : null;
     const refPr = preservedPriceRangeRef?.current?.symbol === selectedSymbol ? preservedPriceRangeRef.current : null;
-    const currentChartPr = isTfChange ? getChartPriceRange(chartRef.current) : null;
-    const preservedPriceRange = isTfChange ? (anchorPr || refPr || currentChartPr || null) : null;
+    const currentChartPr = (isTfChange || isAnchorMatch) ? getChartPriceRange(chartRef.current, series) : null;
+    const preservedPriceRange = (isTfChange || isAnchorMatch) ? (anchorPr || refPr || currentChartPr || null) : null;
     if (preservedPriceRange && preservedPriceRangeRef) {
       preservedPriceRangeRef.current = { symbol: selectedSymbol, ...preservedPriceRange };
     }
     const anchorTs = isAnchorMatch ? anchor?.timeScaleState : null;
     const refTs = preservedTimeScaleRef?.current?.symbol === selectedSymbol ? preservedTimeScaleRef.current.state : null;
-    const preservedTimeScale = isTfChange ? (anchorTs || refTs || null) : null;
+    const preservedTimeScale = (isTfChange || isAnchorMatch) ? (anchorTs || refTs || null) : null;
+    if (preservedTimeScale && preservedTimeScaleRef) {
+      preservedTimeScaleRef.current = { symbol: selectedSymbol, state: preservedTimeScale };
+    }
 
     if (isChangingTfRef) isChangingTfRef.current = true;
 
     // Lock price scale to manual BEFORE setting data so Lightweight Charts never auto-scales
     if (preservedPriceRange && preservedPriceRange.max > preservedPriceRange.min) {
-      try {
-        chartRef.current?.priceScale("right").applyOptions({ autoScale: false });
-        setChartPriceRange(chartRef.current, preservedPriceRange);
-      } catch {}
+      setChartPriceRange(chartRef.current, preservedPriceRange, series);
     }
 
     // Pre-apply preserved barSpacing and rightOffset BEFORE setting data
@@ -180,27 +175,27 @@ export function useRealtimeEffects(params: RealtimeEffectsParams) {
     if (needsTfReframeRef) needsTfReframeRef.current = false;
 
     const isLiveEdgeAnchor = isAnchorMatch && anchor && anchor.fromTime === 0;
-    if (isAnchorMatch && anchor && anchor.fromTime > 0) {
+    const isHistoricalData = chartData.length > 0 && (!anchor?.toTime || Number(chartData[0]!.time) <= anchor.toTime + 86400 * 30);
+    if (isAnchorMatch && anchor && anchor.fromTime > 0 && isHistoricalData) {
       frameHistoricalViewport(
         chartRef.current, chartData, anchor.centerTime, anchor.barCount || 80,
         chartPrefs.autoScale, { from: anchor.fromTime, to: anchor.toTime },
-        preservedPriceRange, preservedTimeScale,
+        preservedPriceRange, preservedTimeScale, series, timeframe,
       );
       useTradingStore.getState().setChartViewportAnchor(null);
       if (lastVisibleTimeRangeRef) {
-        lastVisibleTimeRangeRef.current = {
-          from: anchor.fromTime, to: anchor.toTime,
-          centerTime: anchor.centerTime, barCount: anchor.barCount || 80,
-        };
+        lastVisibleTimeRangeRef.current = { from: anchor.fromTime, to: anchor.toTime, centerTime: anchor.centerTime, barCount: anchor.barCount || 80 };
       }
       if (pendingHistoricalTargetRef) pendingHistoricalTargetRef.current = null;
       if (isScrolledBackRef) isScrolledBackRef.current = true;
+    } else if (isAnchorMatch && anchor && anchor.fromTime > 0 && !isHistoricalData) {
+      // Historical query in-flight: do not reframe or clear anchor on stale live data
     } else if (target && !isLiveEdgeAnchor) {
       if (isAnchorMatch) useTradingStore.getState().setChartViewportAnchor(null);
       frameHistoricalViewport(
         chartRef.current, chartData, target.centerTime, target.barCount,
         chartPrefs.autoScale, saved ? { from: saved.from, to: saved.to } : null,
-        preservedPriceRange, preservedTimeScale,
+        preservedPriceRange, preservedTimeScale, series, timeframe,
       );
       if (pendingHistoricalTargetRef) pendingHistoricalTargetRef.current = null;
     } else {
@@ -210,7 +205,7 @@ export function useRealtimeEffects(params: RealtimeEffectsParams) {
       if (isScrolledBackRef) isScrolledBackRef.current = false;
       frameLatestCandles(
         chartRef.current, chartData.length, chartPrefs.autoScale,
-        preservedPriceRange, preservedTimeScale,
+        preservedPriceRange, preservedTimeScale, chartData, series,
       );
     }
     liveCandleTsRef.current = 0;
@@ -218,6 +213,9 @@ export function useRealtimeEffects(params: RealtimeEffectsParams) {
 
     requestAnimationFrame(() => {
       if (isChangingTfRef) isChangingTfRef.current = false;
+      if (preservedPriceRange && preservedPriceRange.max > preservedPriceRange.min) {
+        setChartPriceRange(chartRef.current, preservedPriceRange, series);
+      }
     });
 
     return scheduleStaleRefetch(chartData, ctx);

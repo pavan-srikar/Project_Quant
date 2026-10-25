@@ -72,7 +72,7 @@ const DEFAULT_CHART_PREFS: ChartPreferences = {
   magnetMode: "none",
   stayInDrawingMode: false,
   activePlugins: [],
-  activeIndicators: [],
+  activeIndicators: ["VOL"],
   candleUpColor: "",
   candleDownColor: "",
   colorBackground: "",

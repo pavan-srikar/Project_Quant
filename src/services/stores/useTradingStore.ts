@@ -81,6 +81,8 @@ export interface ChartTimeScaleState {
   visibleBars: number;
   scrollPosition: number;
   lastVisibleTime?: number;
+  lastVisibleEndTime?: number;
+  rightMarginBars?: number;
 }
 
 export interface ChartViewportAnchor {
@@ -88,6 +90,9 @@ export interface ChartViewportAnchor {
   fromTime: number;
   toTime: number;
   centerTime: number;
+  lastVisibleTime?: number;
+  lastVisibleEndTime?: number;
+  rightMarginBars?: number;
   barCount?: number;
   priceRange?: { min: number; max: number } | null;
   timeScaleState?: ChartTimeScaleState | null;
