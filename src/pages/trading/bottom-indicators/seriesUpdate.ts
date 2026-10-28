@@ -12,7 +12,8 @@ export function updateSeriesData(
     indicatorData.type === "RSI" ||
     indicatorData.type === "ATR" ||
     indicatorData.type === "CCI" ||
-    indicatorData.type === "WR"
+    indicatorData.type === "WR" ||
+    indicatorData.type === "CUSTOM"
   ) {
     state.mainSeries.setData(alignLineData(candleTimes, indicatorData.data));
   } else if (indicatorData.type === "MACD") {

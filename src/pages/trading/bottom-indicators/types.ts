@@ -59,4 +59,5 @@ export type IndicatorCalculatedData =
     }
   | { type: "CCI"; period: number; data: { time: number; value: number }[] }
   | { type: "WR"; period: number; data: { time: number; value: number }[] }
+  | { type: "CUSTOM"; name: string; data: { time: number; value: number }[] }
   | null;

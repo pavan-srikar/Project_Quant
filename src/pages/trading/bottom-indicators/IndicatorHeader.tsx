@@ -86,6 +86,10 @@ function getIndicatorValues(
       const v = findVal(indicatorData.data);
       return v != null ? [{ label: "", value: v.toFixed(2), color: "#2962ff" }] : [];
     }
+    case "CUSTOM": {
+      const v = findVal(indicatorData.data);
+      return v != null ? [{ label: "", value: v.toFixed(2), color: "#2962ff" }] : [];
+    }
     default: {
       if (indicatorData && Array.isArray((indicatorData as any).data)) {
         const v = findVal((indicatorData as any).data);

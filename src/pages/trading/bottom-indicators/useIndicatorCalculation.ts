@@ -74,7 +74,7 @@ export function useIndicatorCalculation(
             const evalRes = evaluatePineScript(indCandles, parsed, custom.inputs);
             const firstPlot = evalRes.plots[0];
             const pts = firstPlot ? firstPlot.values : [];
-            return { type: "WR", period: 14, data: pts };
+            return { type: "CUSTOM", name: custom.name, data: pts };
           }
         }
         return null;
@@ -99,7 +99,8 @@ export function useIndicatorCalculation(
       indicatorData.type === "RSI" ||
       indicatorData.type === "ATR" ||
       indicatorData.type === "CCI" ||
-      indicatorData.type === "WR"
+      indicatorData.type === "WR" ||
+      indicatorData.type === "CUSTOM"
     ) {
       for (const p of indicatorData.data) {
         map.set(p.time, p.value);

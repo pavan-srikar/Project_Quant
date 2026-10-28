@@ -111,9 +111,9 @@ This document catalogs non-obvious engineering gotchas, solved bugs, and archite
 
 ## 6. Viewport Synchronization & Timeframe Transition Gotchas
 
-### A. Lightweight Charts `setVisibleLogicalRange` Overwrites `barSpacing`
-- **Trap**: When attempting to preserve zoom ratio (`barSpacing`), calling `timeScale.setVisibleLogicalRange({ from, to })` internally calculates and overwrites `barSpacing = containerWidth / (to - from)`.
-- **Fix**: Always apply `timeScale.applyOptions({ barSpacing, rightOffset })` **after** setting the logical range, followed by `scrollToPosition`.
+### A. Options Ordering in Lightweight Charts (`barSpacing` vs `setVisibleLogicalRange`)
+- **Trap**: Applying `timeScale.applyOptions({ barSpacing, rightOffset })` after setting `setVisibleLogicalRange({ from, to })` causes Lightweight Charts to recalculate logical boundaries, displacing the pinned historical candle.
+- **Fix**: Always apply `timeScale.applyOptions({ barSpacing, rightOffset })` **before** `timeScale.setVisibleLogicalRange({ from, to })`. This ensures the explicit logical range takes final precedence without displacement.
 
 ### B. High-Timeframe Multiplier Trap (e.g. `1d` $\to$ `30m`)
 - **Trap**: On daily charts (`1d`), each candle spans 86,400s. Standard wheel zooming or slight panning easily shifts `scrollPos` by -3 to -10 bars (just a few days). A rigid threshold like `scrollPos >= -2` treats this normal view as historical, anchoring the chart 40 days in the past. In `30m` candles, 40 days is $\approx 1,920$ bars, causing unexpected network fetches and violent viewport flashes.

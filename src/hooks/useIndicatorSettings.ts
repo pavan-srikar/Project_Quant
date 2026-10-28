@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import type { IndicatorType } from "../lib/indicators.ts";
 
+export interface EmaSlotConfig {
+  enabled: boolean;
+  period: number;
+  color: string;
+}
+
 export interface IndicatorSettings {
   period?: number;
   fast?: number;
@@ -19,6 +25,7 @@ export interface IndicatorSettings {
   lowerColor?: string;
   lineWidth?: number;
   visible?: boolean;
+  emaSlots?: EmaSlotConfig[];
 }
 
 export const DEFAULT_INDICATOR_SETTINGS: Record<IndicatorType, IndicatorSettings> = {
@@ -33,6 +40,13 @@ export const DEFAULT_INDICATOR_SETTINGS: Record<IndicatorType, IndicatorSettings
     color: "#e377c2",
     lineWidth: 1.5,
     visible: true,
+    emaSlots: [
+      { enabled: true, period: 20, color: "#e377c2" },
+      { enabled: false, period: 50, color: "#2962ff" },
+      { enabled: false, period: 100, color: "#ff9800" },
+      { enabled: false, period: 200, color: "#00bcd4" },
+      { enabled: false, period: 9, color: "#9c27b0" },
+    ],
   },
   RSI: {
     period: 14,
@@ -97,6 +111,8 @@ export const DEFAULT_INDICATOR_SETTINGS: Record<IndicatorType, IndicatorSettings
   },
   VOL: {
     color: "#26a69a",
+    histUpColor: "#26a69a",
+    histDownColor: "#ef5350",
     lineWidth: 1,
     visible: true,
   },
@@ -117,6 +133,15 @@ export function getStoredIndicatorSettings(): Record<IndicatorType, IndicatorSet
       if (def && parsed[key]) {
         result[key] = { ...def, ...parsed[key] };
       }
+    }
+    if (result.EMA && (!result.EMA.emaSlots || result.EMA.emaSlots.length === 0)) {
+      result.EMA.emaSlots = [
+        { enabled: true, period: result.EMA.period ?? 20, color: result.EMA.color || "#e377c2" },
+        { enabled: false, period: 50, color: "#2962ff" },
+        { enabled: false, period: 100, color: "#ff9800" },
+        { enabled: false, period: 200, color: "#00bcd4" },
+        { enabled: false, period: 9, color: "#9c27b0" },
+      ];
     }
     return result;
   } catch {

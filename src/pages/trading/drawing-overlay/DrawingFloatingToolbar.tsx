@@ -8,8 +8,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ColorPicker } from "../../../components/color-picker/ColorPicker";
 import {
-  DRAWING_COLORS,
   DRAWING_WIDTHS,
   type DrawingLine,
   type DrawingLineStyle,
@@ -43,26 +43,6 @@ function IconButton({
     >
       {children}
     </button>
-  );
-}
-
-function ColorSwatches({ current, onPick }: { current: string; onPick: (color: string) => void }) {
-  return (
-    <div className="flex items-center gap-1">
-      {DRAWING_COLORS.map((c) => (
-        <button
-          key={c}
-          type="button"
-          title={c}
-          onClick={() => onPick(c)}
-          className={cn(
-            "h-4 w-4 rounded-full border",
-            current === c ? "ring-2 ring-primary border-transparent" : "border-border/60",
-          )}
-          style={{ backgroundColor: c }}
-        />
-      ))}
-    </div>
   );
 }
 
@@ -134,7 +114,7 @@ export function DrawingFloatingToolbar({
   const patch = (p: Partial<DrawingLine>) => onUpdate({ ...drawing, ...p });
   return (
     <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 px-2 py-1 rounded-lg bg-card border border-border shadow-xl">
-      <ColorSwatches current={drawing.color} onPick={(color) => patch({ color })} />
+      <ColorPicker compact value={drawing.color} onChange={(color) => patch({ color })} />
       <Divider />
       <WidthButtons current={drawing.width ?? 2} onPick={(width) => patch({ width })} />
       <Divider />

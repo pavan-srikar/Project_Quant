@@ -66,10 +66,15 @@ export function ChartPanel({
   const indicatorState = useChartIndicatorSettingsState(activeIndicators);
 
   const chartPrefs = useChartPreferences();
-  const colors = useMemo(
-    () => mergeChartColors(isDark ? CHART_COLORS.dark : CHART_COLORS.light, chartPrefs),
-    [isDark, chartPrefs],
-  );
+  const colors = useMemo(() => {
+    const base = mergeChartColors(isDark ? CHART_COLORS.dark : CHART_COLORS.light, chartPrefs);
+    const vol = indicatorState.indicatorSettings?.VOL;
+    return {
+      ...base,
+      volumeUp: vol?.histUpColor || vol?.color || base.volumeUp,
+      volumeDown: vol?.histDownColor || base.volumeDown,
+    };
+  }, [isDark, chartPrefs, indicatorState.indicatorSettings]);
 
   const selectionState = useDrawingSelectionState(drawings, timeframe);
 

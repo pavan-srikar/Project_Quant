@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import type { DrawingLine } from "../../constants.ts";
+import { ColorPicker } from "../../../../components/color-picker/ColorPicker";
 import { FONT_SIZES } from "../types";
 
 export function TextFormatBar({
@@ -14,12 +15,10 @@ export function TextFormatBar({
   const on = "bg-primary/20 text-primary border-primary/40";
   return (
     <div className="flex items-center gap-1.5">
-      <input
-        type="color"
+      <ColorPicker
+        compact
         value={drawing.color}
-        onChange={(e) => patch({ color: e.target.value })}
-        title="Text color"
-        className="h-7 w-9 cursor-pointer rounded bg-transparent border border-border p-0.5"
+        onChange={(color) => patch({ color })}
       />
       <select
         value={drawing.fontSize ?? 14}
@@ -74,11 +73,11 @@ export function TextToggleRow({
         <input type="checkbox" checked={enabled} onChange={(e) => onToggle(e.target.checked)} />
         {label}
       </label>
-      <input
-        type="color"
+      <ColorPicker
+        compact
+        align="right"
         value={color || fallback}
-        onChange={(e) => onColor(e.target.value)}
-        className="h-6 w-8 cursor-pointer rounded bg-transparent border border-border p-0.5"
+        onChange={onColor}
       />
     </div>
   );

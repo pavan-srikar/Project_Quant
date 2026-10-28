@@ -101,11 +101,6 @@ export function useRealtimeEffects(params: RealtimeEffectsParams) {
       (prevKey && prevKey.startsWith(`${selectedSymbol}:`) && prevKey !== loadKey)
     );
 
-    if (isTfChange && (!preservedPriceRangeRef?.current || preservedPriceRangeRef.current.symbol !== selectedSymbol)) {
-      const pr = getChartPriceRange(chartRef.current, series);
-      if (pr && preservedPriceRangeRef) preservedPriceRangeRef.current = { symbol: selectedSymbol, ...pr };
-    }
-
     // Capture target before setData fires timescale listeners that could clear state
     const saved = lastVisibleTimeRangeRef?.current;
     const target =

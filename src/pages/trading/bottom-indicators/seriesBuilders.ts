@@ -220,6 +220,21 @@ export function buildIndicatorSeries(
       axisLabelVisible: true,
       title: "",
     });
+  } else if (indicatorData.type === "CUSTOM") {
+    const customSeries = chart.addLineSeries({
+      color: currentSettings.color || "#2962ff",
+      lineWidth: (currentSettings.lineWidth as any) ?? 1.5,
+      priceLineVisible: false,
+      lastValueVisible: true,
+      priceFormat: {
+        type: "custom",
+        minMove: 0.01,
+        formatter: (p: number) => p.toFixed(2),
+      },
+    });
+    customSeries.setData(alignLineData(candleTimes, indicatorData.data));
+    mainSeries = customSeries;
+    allSeries.push(customSeries);
   } else {
     // WR
     const wrSeries = chart.addLineSeries({

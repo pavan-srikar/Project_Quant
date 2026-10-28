@@ -1,5 +1,6 @@
 import type { DrawingLine } from "../../constants.ts";
 import { SettingsRow } from "./SettingControls.tsx";
+import { ColorPicker } from "../../../../components/color-picker/ColorPicker";
 
 export function NumRow({
   label,
@@ -101,27 +102,27 @@ export function VolumeProfileSettings({
         />
       </SettingsRow>
       <SettingsRow label="Up Volume">
-        <input
-          type="color"
+        <ColorPicker
+          compact
+          align="right"
           value={drawing.upColor ?? "#5b84c4"}
-          onChange={(e) => patch({ upColor: e.target.value })}
-          className="h-6 w-10 cursor-pointer bg-transparent border-0 p-0"
+          onChange={(upColor) => patch({ upColor })}
         />
       </SettingsRow>
       <SettingsRow label="Down Volume">
-        <input
-          type="color"
+        <ColorPicker
+          compact
+          align="right"
           value={drawing.downColor ?? "#7e60a8"}
-          onChange={(e) => patch({ downColor: e.target.value })}
-          className="h-6 w-10 cursor-pointer bg-transparent border-0 p-0"
+          onChange={(downColor) => patch({ downColor })}
         />
       </SettingsRow>
       <SettingsRow label="POC Color">
-        <input
-          type="color"
+        <ColorPicker
+          compact
+          align="right"
           value={drawing.pocColor ?? "#ea3943"}
-          onChange={(e) => patch({ pocColor: e.target.value })}
-          className="h-6 w-10 cursor-pointer bg-transparent border-0 p-0"
+          onChange={(pocColor) => patch({ pocColor })}
         />
       </SettingsRow>
     </>

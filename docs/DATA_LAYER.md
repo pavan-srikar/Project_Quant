@@ -108,12 +108,14 @@ The `CandleRepository` is the terminal's Single Source of Truth for candlestick 
 
 TradingView never calculates bar index offsets across resolutions because bar counts differ drastically between timeframes (1 day = 1 bar in 1d, 6 bars in 4h, 48 bars in 30m).
 
-Instead, the terminal uses **calendar-time viewport synchronization**:
-- **Time Anchor**: The controller tracks the visible center timestamp ($T_{center} = \frac{T_{from} + T_{to}}{2}$) and visible duration.
-- **Timeframe Transition**: When switching timeframes (e.g. 1h to 4h or 30m):
-  1. If the user is at the live edge (`logicalRange.to >= totalBars - 3`), the chart remains locked to the live edge with right margin.
-  2. If the user is inspecting historical data (e.g. July 2025), the controller requests the historical window around $T_{center}$ for the new timeframe, centers the viewport on $T_{center}$, and auto-fits the vertical price scale to the candles visible in that calendar window.
-  3. This completely prevents jumping to the live edge, jumping to empty price space (e.g. \$150k when price is at \$67k), or auto-scrolling backwards.
+Instead, the terminal uses **calendar-time viewport synchronization with rightmost candle pinning**:
+- **Rightmost Candle Pinning**: The controller tracks the rightmost visible candle timestamp (`lastVisibleTime`, `lastVisibleEndTime`) and `rightMarginBars`. When switching timeframes, the rightmost visible candle is anchored at its exact position.
+- **Zoom Ratio Preservation**: The exact `barSpacing` (candle pixel width) is captured and restored before setting series data, keeping the user's zoom ratio completely stable.
+- **Vertical Price Range Preservation**: Visible price range `{ min, max }` is extracted via `getChartPriceRange()` and locked via `setChartPriceRange()`, preventing auto-scale jumps or price disorientation.
+- **Timeframe Transition**: When switching timeframes (e.g. 4h to 30m or 1h):
+  1. If the user is inspecting historical data (e.g. last year), the rightmost visible candle remains pinned in place at its historical timestamp without jumping to today.
+  2. If the user is at the live edge (`rightBarIdx >= totalBars - 2 && rightMarginBars <= 20`), the chart locks to the live edge with right margin.
+  3. Cooldown window (1500ms) and interaction state reset prevent backwards auto-scroll chaining.
 
 ---
 

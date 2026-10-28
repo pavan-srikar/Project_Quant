@@ -76,8 +76,15 @@ export function getPriceDecimals(price: number, tickSize?: number | null): numbe
   return 2;
 }
 
-export function hexToRgba(hex: string, alpha: number): string {
-  const clean = hex.replace("#", "");
+export function hexToRgba(color: string, alpha: number): string {
+  if (!color) return `rgba(41, 98, 255, ${alpha})`;
+  if (color.startsWith("rgba(") || color.startsWith("rgb(")) {
+    const match = color.match(/^rgba?\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+    if (match) {
+      return `rgba(${match[1]}, ${match[2]}, ${match[3]}, ${alpha})`;
+    }
+  }
+  const clean = color.replace("#", "");
   const r = parseInt(clean.substring(0, 2), 16) || 0;
   const g = parseInt(clean.substring(2, 4), 16) || 0;
   const b = parseInt(clean.substring(4, 6), 16) || 0;

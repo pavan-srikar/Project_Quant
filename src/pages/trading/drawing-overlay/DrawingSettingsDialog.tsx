@@ -1,6 +1,7 @@
 import { GripVertical, Trash2, X } from "lucide-react";
 import { useDragOffset } from "../../../hooks/useDragOffset.ts";
 import { cn } from "@/lib/utils";
+import { ColorPicker } from "../../../components/color-picker/ColorPicker";
 import type { DrawingLine } from "../constants.ts";
 import { FILLABLE, type DrawingSettingsProps } from "./types";
 import {
@@ -32,37 +33,37 @@ export function LineStyleSection({
       {drawing.type === "position" ? (
         <>
           <SettingsRow label="Target (Blue)">
-            <input
-              type="color"
+            <ColorPicker
+              compact
+              align="right"
               value={drawing.targetColor ?? "#3179f5"}
-              onChange={(e) => patch({ targetColor: e.target.value })}
-              className="h-6 w-10 cursor-pointer bg-transparent border-0 p-0"
+              onChange={(targetColor) => patch({ targetColor })}
             />
           </SettingsRow>
           <SettingsRow label="Stop (Red)">
-            <input
-              type="color"
+            <ColorPicker
+              compact
+              align="right"
               value={drawing.stopColor ?? "#ec407a"}
-              onChange={(e) => patch({ stopColor: e.target.value })}
-              className="h-6 w-10 cursor-pointer bg-transparent border-0 p-0"
+              onChange={(stopColor) => patch({ stopColor })}
             />
           </SettingsRow>
           <SettingsRow label="Middle Line">
-            <input
-              type="color"
+            <ColorPicker
+              compact
+              align="right"
               value={drawing.entryLineColor ?? "#787b86"}
-              onChange={(e) => patch({ entryLineColor: e.target.value })}
-              className="h-6 w-10 cursor-pointer bg-transparent border-0 p-0"
+              onChange={(entryLineColor) => patch({ entryLineColor })}
             />
           </SettingsRow>
         </>
       ) : (
         <SettingsRow label="Color">
-          <input
-            type="color"
+          <ColorPicker
+            compact
+            align="right"
             value={drawing.color}
-            onChange={(e) => patch({ color: e.target.value })}
-            className="h-6 w-10 cursor-pointer bg-transparent border-0 p-0"
+            onChange={(color) => patch({ color })}
           />
         </SettingsRow>
       )}

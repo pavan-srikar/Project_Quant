@@ -7,6 +7,8 @@ import {
   saveTemplate,
   setTypeDefault,
 } from "../../drawingStyles.ts";
+import { ColorPicker } from "../../../../components/color-picker/ColorPicker";
+import { applyAlphaToColor, parseColor } from "../../../../lib/colorUtils";
 
 export function SettingsRow({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -55,25 +57,24 @@ export function FillControls({
   drawing: DrawingLine;
   patch: (p: Partial<DrawingLine>) => void;
 }) {
+  const currentFill = drawing.fillColor ?? drawing.color;
+  const currentAlpha = drawing.fillOpacity ?? 0.14;
+  const colorWithAlpha = applyAlphaToColor(currentFill, currentAlpha);
+
   return (
     <SettingsRow label="Fill">
-      <div className="flex items-center gap-2">
-        <input
-          type="color"
-          value={drawing.fillColor ?? drawing.color}
-          onChange={(e) => patch({ fillColor: e.target.value })}
-          className="h-6 w-8 cursor-pointer bg-transparent border-0 p-0"
-        />
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.05}
-          value={drawing.fillOpacity ?? 0.14}
-          onChange={(e) => patch({ fillOpacity: Number.parseFloat(e.target.value) })}
-          className="w-20"
-        />
-      </div>
+      <ColorPicker
+        compact
+        align="right"
+        value={colorWithAlpha}
+        onChange={(val) => {
+          const parsed = parseColor(val);
+          patch({
+            fillColor: parsed.hex,
+            fillOpacity: parsed.a,
+          });
+        }}
+      />
     </SettingsRow>
   );
 }

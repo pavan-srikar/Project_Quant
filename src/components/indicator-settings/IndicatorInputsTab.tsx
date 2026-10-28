@@ -1,6 +1,7 @@
 import React from "react";
 import type { IndicatorType } from "../../lib/indicators.ts";
 import type { IndicatorSettings } from "../../hooks/useIndicatorSettings.ts";
+import { EmaSlotsSection } from "./EmaSlotsSection";
 
 export interface IndicatorInputsTabProps {
   type: IndicatorType;
@@ -101,8 +102,11 @@ export function IndicatorInputsTab({ type, draft, setDraft }: IndicatorInputsTab
         </>
       )}
 
-      {/* SMA, EMA, ATR, CCI, WR Inputs */}
-      {(type === "SMA" || type === "EMA" || type === "ATR" || type === "CCI" || type === "WR") && (
+      {/* EMA Multiple Inputs (up to 5) */}
+      {type === "EMA" && <EmaSlotsSection draft={draft} setDraft={setDraft} />}
+
+      {/* SMA, ATR, CCI, WR Inputs */}
+      {(type === "SMA" || type === "ATR" || type === "CCI" || type === "WR") && (
         <div className="flex items-center justify-between">
           <label className="text-neutral-300 font-medium">Period / Length</label>
           <input

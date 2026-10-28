@@ -101,17 +101,24 @@ export function useIndicators(
           break;
         }
         case "EMA": {
-          const period = curSettings.period ?? config.defaultParams.period ?? 20;
-          const data = ema(indCandles, period);
-          const s = chart.addLineSeries({
-            color: lineColor,
-            lineWidth,
-            priceScaleId: "right",
-            priceLineVisible: false,
-            lastValueVisible: true,
+          const slots =
+            curSettings.emaSlots && curSettings.emaSlots.length > 0
+              ? curSettings.emaSlots
+              : [{ enabled: true, period: curSettings.period ?? 20, color: lineColor }];
+
+          slots.forEach((slot, idx) => {
+            if (!slot.enabled || slot.period <= 0) return;
+            const data = ema(indCandles, slot.period);
+            const s = chart.addLineSeries({
+              color: slot.color || lineColor,
+              lineWidth,
+              priceScaleId: "right",
+              priceLineVisible: false,
+              lastValueVisible: true,
+            });
+            s.setData(data.map((p) => ({ time: p.time as Time, value: p.value })));
+            indicatorSeriesRef.current.set(`EMA_${idx + 1}`, s);
           });
-          s.setData(data.map((p) => ({ time: p.time as Time, value: p.value })));
-          indicatorSeriesRef.current.set("EMA", s);
           break;
         }
         case "BOLL": {

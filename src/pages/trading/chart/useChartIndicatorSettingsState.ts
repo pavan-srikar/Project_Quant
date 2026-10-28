@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useIndicatorSettings } from "../../../hooks/useIndicatorSettings.ts";
 import { INDICATOR_REGISTRY, type IndicatorType } from "../../../lib/indicators.ts";
+import { getCustomPineIndicators } from "../../../lib/pinescript";
 
 export function useChartIndicatorSettingsState(activeIndicators: IndicatorType[]) {
   const {
@@ -12,6 +13,10 @@ export function useChartIndicatorSettingsState(activeIndicators: IndicatorType[]
 
   const overlayIndicators = useMemo(() => {
     return activeIndicators.filter((t) => {
+      if (t.startsWith("pine_")) {
+        const custom = getCustomPineIndicators().find((s) => s.id === t);
+        return custom ? custom.overlay : false;
+      }
       const cfg = INDICATOR_REGISTRY.find((r) => r.type === t);
       return cfg && cfg.pane === "overlay";
     });

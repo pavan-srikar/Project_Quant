@@ -28,8 +28,9 @@ src/lib/indicators/
 
 ### A. Simple & Exponential Moving Averages (`moving-averages.ts`)
 - **SMA**: Rolling sum over period $N$ divided by $N$.
-- **EMA**: Seeded with initial SMA; smoothing multiplier $k = \frac{2}{N + 1}$.  
+- **EMA (Multi-EMA)**: Seeded with initial SMA; smoothing multiplier $k = \frac{2}{N + 1}$.  
   $$\text{EMA}_t = \text{Close}_t \times k + \text{EMA}_{t-1} \times (1 - k)$$
+  Supports up to 5 individual EMAs simultaneously within a single indicator entry. Users can tick/untick individual EMAs (EMA 1 to EMA 5), set distinct periods (e.g. 20, 50, 100, 200, 9), and customize colors for each line independently.
 - **VWAP**: Cumulative volume-weighted typical price:
   $$\text{Typical Price} = \frac{\text{High} + \text{Low} + \text{Close}}{3}, \quad \text{VWAP} = \frac{\sum (\text{Typical Price} \times \text{Volume})}{\sum \text{Volume}}$$
 
@@ -142,6 +143,6 @@ src/lib/pinescript/
 1. **Fixed-Length Scrollable Viewport**: The menu has a capped height (`max-h-72 overflow-y-auto`) so dozens of indicators and imported custom scripts can be browsed without overflowing the screen.
 2. **Real-Time Search Bar**: Instant text filtering by indicator name, acronym (e.g. "RSI", "VOL"), or description.
 3. **Category Filtering**: Tabs filter between "All", "Overlay", "Oscillators", and "Pine" custom indicators.
-4. **Pine Script Import Action**: "Import Pine Script" button opens `PineScriptImportModal.tsx` allowing drag-and-drop file upload, template selection, and syntax-checked code compilation.
-5. **Volume Control**: Volume (`VOL`) is fully integrated into the indicator catalog, allowing users to toggle it on/off just like any other technical indicator.
+4. **Pine Script Import Action**: "Import Pine Script" button opens a minimal, distraction-free `PineScriptImportModal.tsx` allowing direct drag-and-drop file upload or raw code pasting with instant syntax checking, with zero pre-filled template clutter.
+5. **Volume Control & Custom Styling**: Volume (`VOL`) is fully integrated into the indicator catalog, allowing users to toggle it on/off just like any other technical indicator and independently customize Bullish (Up) and Bearish (Down) histogram bar colors in settings.
 

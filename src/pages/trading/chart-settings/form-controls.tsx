@@ -1,5 +1,6 @@
 import { type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { ColorPicker } from "../../../components/color-picker/ColorPicker";
 
 export function Switch({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   // In-flow flex knob with explicit p-0/border-0 — relying on absolute
@@ -66,11 +67,11 @@ export function ColorSwatch({
   onChange: (v: string) => void;
 }) {
   return (
-    <input
-      type="color"
+    <ColorPicker
+      compact
+      align="right"
       value={value || fallback}
-      onChange={(e) => onChange(e.target.value)}
-      className="h-6 w-8 cursor-pointer rounded border border-[#2a2e39] bg-transparent p-0"
+      onChange={onChange}
     />
   );
 }

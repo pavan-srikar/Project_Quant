@@ -79,6 +79,9 @@ Every file in `src/` is strictly under 300 lines with a single, clear responsibi
 - `src/components/IndicatorSettingsModal.tsx` — Barrel facade re-exporting the indicator settings modal.
 - `src/components/MobileTradingPanel.tsx` — Barrel facade re-exporting the mobile trading drawer.
 - `src/components/TradingDialogs.tsx` — Central container rendering confirm/modify modal overlays.
+- `src/components/color-picker/ColorPicker.tsx` — TradingView-style color picker component with palette swatches, inline and compact popovers.
+- `src/components/color-picker/ColorPickerContext.tsx` — Context and provider managing side flyout color picker positioning and active target.
+- `src/components/color-picker/RgbPickerPanel.tsx` — 2D saturation/brightness spectrum, Hue slider, and Opacity slider popover panel.
 
 #### Market Data Bridge (`src/components/market-data-bridge/`)
 - `MarketDataBridge.tsx` — Headless component syncing WebSocket streams with React Query and stores.
@@ -99,6 +102,7 @@ Every file in `src/` is strictly under 300 lines with a single, clear responsibi
 #### Indicator Settings (`src/components/indicator-settings/`)
 - `IndicatorSettingsModal.tsx` — Settings dialog configuring inputs and colors for active indicators.
 - `IndicatorInputsTab.tsx` — Form controls for numeric parameters (period, fast, slow, multiplier).
+- `EmaSlotsSection.tsx` — Form controls configuring up to 5 individual EMAs with enable toggles, periods, and colors.
 - `IndicatorStyleTab.tsx` — Color pickers and line style selectors (solid, dashed, dotted) per indicator.
 - `types.ts` — TypeScript interfaces for indicator configuration tabs and forms.
 
@@ -141,6 +145,7 @@ Every file in `src/` is strictly under 300 lines with a single, clear responsibi
 
 ### Core Libraries & Plugins (`src/lib/`)
 - `src/lib/indicators.ts` — Barrel facade re-exporting all technical indicator formulas.
+- `src/lib/colorUtils.ts` — Color parsing and formatting supporting Hex, RGB, and RGBA with alpha/opacity.
 - `src/lib/livePnl.ts` — Pure function calculating real-time unrealized PnL and return percentages.
 - `src/lib/utils.ts` — Common helper functions (`cn`, `formatNumber`, `hexToRgba`, `getErrorMessage`, etc.).
 

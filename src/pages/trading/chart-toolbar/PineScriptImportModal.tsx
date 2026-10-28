@@ -1,8 +1,7 @@
 import { useState, type ChangeEvent, type DragEvent } from "react";
-import { Code2, FileUp, Sparkles, X, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Code2, FileUp, X, AlertCircle, CheckCircle2 } from "lucide-react";
 import { parsePineScript } from "../../../lib/pinescript/parser";
 import { saveCustomPineIndicator } from "../../../lib/pinescript/storage";
-import { PINE_SAMPLES } from "../../../lib/pinescript/samples";
 import type { IndicatorType } from "../../../lib/indicators/types";
 
 export interface PineScriptImportModalProps {
@@ -16,7 +15,7 @@ export function PineScriptImportModal({
   onClose,
   onIndicatorImported,
 }: PineScriptImportModalProps) {
-  const [code, setCode] = useState<string>(PINE_SAMPLES[0]?.code ?? "");
+  const [code, setCode] = useState<string>("");
   const [name, setName] = useState<string>("");
   const [dragActive, setDragActive] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -125,29 +124,6 @@ export function PineScriptImportModal({
               <FileUp className="h-4 w-4 text-[#2962ff]" />
               <span className="font-medium">Upload .pine or .txt script file</span>
               <span className="text-neutral-500">or drag and drop here</span>
-            </div>
-          </div>
-
-          {/* Quick Example Templates */}
-          <div className="flex items-center gap-2">
-            <span className="text-neutral-400 shrink-0 flex items-center gap-1 font-medium">
-              <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-              Templates:
-            </span>
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-              {PINE_SAMPLES.map((sample) => (
-                <button
-                  key={sample.name}
-                  onClick={() => {
-                    setCode(sample.code);
-                    setName(sample.name);
-                    setError(null);
-                  }}
-                  className="px-2.5 py-1 rounded-md bg-[#2a2e39] hover:bg-[#363a45] text-neutral-300 hover:text-white font-medium whitespace-nowrap transition-colors text-[11px]"
-                >
-                  {sample.name}
-                </button>
-              ))}
             </div>
           </div>
 

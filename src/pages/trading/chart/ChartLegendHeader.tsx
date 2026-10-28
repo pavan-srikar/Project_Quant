@@ -91,7 +91,15 @@ function getOverlayLabel(
   settings?: IndicatorSettings,
 ): string {
   if (type === "SMA") return `SMA ${settings?.period ?? 20} close`;
-  if (type === "EMA") return `EMA ${settings?.period ?? 20} close`;
+  if (type === "EMA") {
+    const activeSlots = settings?.emaSlots
+      ? settings.emaSlots.filter((s) => s.enabled)
+      : null;
+    if (activeSlots && activeSlots.length > 0) {
+      return `EMA ${activeSlots.map((s) => s.period).join(", ")} close`;
+    }
+    return `EMA ${settings?.period ?? 20} close`;
+  }
   if (type === "BOLL")
     return `BB ${settings?.period ?? 20} ${settings?.stdDev ?? 2} close`;
   if (type === "VWAP") return `VWAP`;
