@@ -231,3 +231,40 @@ When switching timeframes on the same symbol (e.g. 4H → 1H, 4H → 30m), Tradi
   - **Volume Ladder**: Flanking Bid $\times$ Ask columns with proportional histogram fills and imbalance highlights.
   - **POC Highlight**: High-contrast solid black POC box (`#000000`) with 1.5px white border and extension lines.
   - **Bottom Readout**: Dynamically anchored below `maxBarY` (lowest pixel of clusters and wicks), rendering centered Sell/Buy totals followed by a compact high-contrast card (`rgba(18, 22, 34, 0.94)`) containing signed Delta and Total volume.
+
+---
+
+## 11. Liquidation Heatmap Subsystem (`src/lib/chart-plugins/heatmap/`)
+
+- **Attachment & Lifecycle (`useHeatmapAttachment.ts`)**:
+  - Mounts `HeatmapPrimitive` to the active `CandlestickSeries`.
+  - When `chartType === "heatmap"`: enables the primitive and maintains crisp candlestick borders on top of the heatmap canvas.
+  - When switching modes: deactivates rendering cleanly.
+- **Generator (`heatmap-generator.ts`)**:
+  - `generateHeatmapGrid`: Constructs a continuous 2D liquidation density matrix $N \times M$ ($N$ candle columns $\times$ $M$ price rows).
+  - Accumulates leveraged liquidation volume ($10x, 25x, 50x, 100x$) chronologically across candles into active long and short buckets with Gaussian-like price distribution.
+  - Price sweeps: When a candle low touches or breaches a price bucket, long pools wipe out instantly; when a candle high touches or breaches a short bucket, short pools wipe out instantly, creating sharp vertical sweep cutoff lines.
+  - Supports CoinGlass Sensitivity presets (`high`, `medium`, `low`) controlling noise threshold and saturation ceiling.
+- **Primitive (`heatmap-primitive.ts`)**:
+  - Custom `ISeriesPrimitive` implementing `zOrder(): "bottom"` to project liquidation bands behind candlesticks, wicks, and drawing tools without obstructing interaction.
+  - Offscreen GPU Canvas: Rasterizes the $N \times M$ matrix into an offscreen canvas texture using 2D `ImageData`.
+  - Stretches and maps offscreen canvas texture to exact media coordinates using hardware-accelerated bilinear smoothing (`imageSmoothingQuality = "high"`).
+  - Subscribes to `crosshairMove` to provide real-time hover inspection (date/time, price, and liquidation leverage volume).
+- **Renderer (`heatmap-renderer.ts`)**:
+  - Fills pane background with authentic CoinGlass deep dark eggplant purple (`#201936`).
+  - Draws continuous 2D thermal field with GPU bilinear interpolation:
+    - Peak: Radiant Cream Yellow (`#eaf3c3`)
+    - Upper: Soft Light Green (`#9ecba9`)
+    - Mid: Seafoam Teal (`#529994`)
+    - Lower: Petrol Navy Blue (`#2b5c77`)
+    - Baseline: Deep Dark Eggplant (`#201936`)
+  - Left Color Scale Bar: Vertical scale bar with 0 to peak volume readouts (`M`, `K`).
+  - Crosshair Hover Card: Floating dark card (`rgba(16, 20, 31, 0.94)`) displaying formatted date, price, and exact liquidation volume at the cursor.
+- **Settings Modal (`ChartTypeSettingsModal.tsx` & `HeatmapSettingsTab.tsx`)**:
+  - Quick-access gear icons in the toolbar and within the `ChartTypeSelector` dropdown provide full controls:
+    - **Sensitivity**: `[ High ]`, `[ Medium ]`, `[ Low ]` quick presets.
+    - **Intensity & Brightness**: `1.0x` – `5.0x` slider.
+    - **Band Thickness / Height**: `3px` – `24px` slider.
+    - **Minimum Visibility Floor**: `10%` – `80%` slider.
+    - **Color Themes**: `CoinGlass`, `Plasma`, `Inferno`.
+    - Visual order intensity color guide explaining what each color level represents.

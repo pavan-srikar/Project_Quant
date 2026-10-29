@@ -19,7 +19,7 @@ export function useChartLifecycle(params: ChartLifecycleParams) {
     loadMoreRef, hasUserPannedOrZoomedRef, isScrolledBackRef, isChangingTfRef,
     pendingHistoricalTargetRef, lastVisibleTimeRangeRef, timeframeRef, allCandlesRef,
     lastCandleRef, lastLoadKeyRef, lastLoadedSeriesRef, liveCandleTsRef, legendVolRef,
-    legendRestoredRef, lastGapRefetchAtRef, bidLineRef, askLineRef, midLineRef,
+    legendRestoredRef, hoveredTimeRef, lastGapRefetchAtRef, bidLineRef, askLineRef, midLineRef,
     chartPluginsRef, drawingMenuOpenedRef, onChartReady, setLegend, setHistoricalExtra,
     setSelectedDrawingIds, setShowDrawingSettings, setContextMenu, drawingToolRef,
     drawingsRef, magnetRef, stayInModeRef, accountEquityRef, styleDefaultsRef,
@@ -65,6 +65,8 @@ export function useChartLifecycle(params: ChartLifecycleParams) {
       lastCandleRef,
       legendVolRef,
       setLegend,
+      hoveredTimeRef,
+      allCandlesRef,
     );
     candleSeriesRef.current = candleSeries;
     volumeSeriesRef.current = volumeSeries;
@@ -251,6 +253,7 @@ export function useChartLifecycle(params: ChartLifecycleParams) {
       lastLoadedSeriesRef.current = null;
       lastCandleRef.current = null;
       legendVolRef.current = 0;
+      if (hoveredTimeRef) hoveredTimeRef.current = null;
       liveCandleTsRef.current = 0;
       loadMoreRef.current = { loading: false, noMoreData: false, lastFetchedBeforeMs: 0, fetchFromMs: 0 };
       lastGapRefetchAtRef.current = 0;

@@ -49,6 +49,7 @@ export function useChartStateRefs(selectedSymbol: string, timeframe: Timeframe) 
   const liveCandleTsRef = useRef<number>(0);
   const legendVolRef = useRef<number>(0);
   const legendRestoredRef = useRef(true);
+  const hoveredTimeRef = useRef<Time | null>(null);
 
   const isScrolledBackRef = useRef(false);
   const pendingHistoricalTargetRef = useRef<{
@@ -146,6 +147,7 @@ export function useChartStateRefs(selectedSymbol: string, timeframe: Timeframe) 
     liveCandleTsRef,
     legendVolRef,
     legendRestoredRef,
+    hoveredTimeRef,
     isScrolledBackRef,
     pendingHistoricalTargetRef,
     needsTfReframeRef,

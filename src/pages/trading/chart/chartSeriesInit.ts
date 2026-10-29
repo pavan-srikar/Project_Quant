@@ -7,6 +7,7 @@ import {
   type Time,
 } from "lightweight-charts";
 import type { Dispatch, RefObject, SetStateAction } from "react";
+import type { Candle } from "../../../services/schemas.ts";
 import { getMinMove } from "../utils.ts";
 import { restoreLegendOnLeave } from "./realtimeFeed.ts";
 import type { ChartColors, OhlcvLegend } from "./types.ts";
@@ -25,6 +26,8 @@ export function initChartSeries(
   lastCandleRef: RefObject<CandlestickData<Time> | null>,
   legendVolRef: RefObject<number>,
   setLegend: Dispatch<SetStateAction<OhlcvLegend | null>>,
+  hoveredTimeRef?: RefObject<Time | null>,
+  allCandlesRef?: RefObject<Candle[]>,
 ): SeriesInitResult {
   const minMove = getMinMove(pipDigits);
 
@@ -57,14 +60,35 @@ export function initChartSeries(
 
   chart.subscribeCrosshairMove((param) => {
     if (!param?.time) {
+      if (hoveredTimeRef) hoveredTimeRef.current = null;
       restoreLegendOnLeave(legendRestoredRef, lastCandleRef, legendVolRef, setLegend);
       return;
     }
+    if (hoveredTimeRef) hoveredTimeRef.current = param.time;
     legendRestoredRef.current = false;
     const data = param.seriesData.get(candleSeries) as CandlestickData<Time> | undefined;
     if (data) {
       const vol = param.seriesData.get(volumeSeries) as HistogramData<Time> | undefined;
-      setLegend(candleToLegend(data, vol?.value || 0));
+      let delta: number | undefined;
+      const allCandles = allCandlesRef?.current;
+      if (allCandles && allCandles.length > 0) {
+        const timeSec = Number(param.time);
+        const found = allCandles.find((c) => Number(c.time) === timeSec);
+        if (found) {
+          if (found.delta !== undefined) {
+            delta = found.delta;
+          } else if (found.takerBuyVolume !== undefined && found.volume !== undefined) {
+            delta = 2 * found.takerBuyVolume - found.volume;
+          }
+        }
+      }
+      setLegend((prev) =>
+        candleToLegend(
+          data,
+          vol?.value || 0,
+          delta ?? (data.time === lastCandleRef.current?.time ? prev?.delta : undefined),
+        ),
+      );
     }
   });
 

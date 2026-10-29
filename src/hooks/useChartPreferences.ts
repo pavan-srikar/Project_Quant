@@ -58,11 +58,20 @@ export interface ChartPreferences {
   challengeProfitTargetLine: boolean;
   /** Auto scale price axis to fit visible data. Default is false (manual). */
   autoScale: boolean;
-  /** Active chart type (candles or footprint). */
+  /** Active chart type (candles, footprint, or heatmap). */
   chartType: ChartType;
+  heatmapBrightness: number;
+  heatmapBandHeight: number;
+  heatmapMinOpacity: number;
+  heatmapColorMap: string;
+  heatmapSensitivity: "high" | "medium" | "low";
+  heatmapThresholdRatio: number;
+  heatmapCeilingRatio: number;
+  footprintImbalanceRatio: number;
+  footprintShowSummary: boolean;
 }
 
-export type ChartType = "candles" | "footprint";
+export type ChartType = "candles" | "footprint" | "heatmap";
 
 type TraderPrefs = Record<string, string>;
 
@@ -105,46 +114,39 @@ const DEFAULT_CHART_PREFS: ChartPreferences = {
   challengeProfitTargetLine: false,
   autoScale: false,
   chartType: "candles",
+  heatmapBrightness: 2.0,
+  heatmapBandHeight: 8,
+  heatmapMinOpacity: 0.35,
+  heatmapColorMap: "viridis",
+  heatmapSensitivity: "medium",
+  heatmapThresholdRatio: 0.49064,
+  heatmapCeilingRatio: 1.0,
+  footprintImbalanceRatio: 2.5,
+  footprintShowSummary: true,
 };
 
 /** Boolean preference keys read straight through `toBool` with their default. */
 const BOOL_PREF_KEYS = [
-  "showBidLine",
-  "showAskLine",
-  "overlayPositionsOnChart",
-  "drawingMagnet",
-  "stayInDrawingMode",
-  "showWicks",
-  "showCandleBorders",
-  "showVolume",
-  "showGrid",
-  "showWatermark",
-  "showCountdown",
-  "showOhlcLegend",
-  "challengeOverlay",
-  "challengeDailyLossLine",
-  "challengeMaxDrawdownLine",
-  "challengeProfitTargetLine",
-  "chartTemplateAutosave",
-  "autoScale",
+  "showBidLine", "showAskLine", "overlayPositionsOnChart", "drawingMagnet",
+  "stayInDrawingMode", "showWicks", "showCandleBorders", "showVolume",
+  "showGrid", "showWatermark", "showCountdown", "showOhlcLegend",
+  "challengeOverlay", "challengeDailyLossLine", "challengeMaxDrawdownLine",
+  "challengeProfitTargetLine", "chartTemplateAutosave", "autoScale",
+  "footprintShowSummary",
+] as const;
+
+/** Number preference keys parsed via `toNumber`. */
+const NUMBER_PREF_KEYS = [
+  "heatmapBrightness", "heatmapBandHeight", "heatmapMinOpacity",
+  "footprintImbalanceRatio", "heatmapThresholdRatio", "heatmapCeilingRatio",
 ] as const;
 
 /** String preference keys stored raw (empty string allowed). */
 const STRING_PREF_KEYS = [
-  "candleUpColor",
-  "candleDownColor",
-  "colorBackground",
-  "colorGrid",
-  "colorScaleText",
-  "colorCrosshair",
-  "colorBidLine",
-  "colorAskLine",
-  "colorPositionLong",
-  "colorPositionShort",
-  "colorOrderLine",
-  "colorTpLine",
-  "colorSlLine",
-  "activeChartTemplate",
+  "candleUpColor", "candleDownColor", "colorBackground", "colorGrid",
+  "colorScaleText", "colorCrosshair", "colorBidLine", "colorAskLine",
+  "colorPositionLong", "colorPositionShort", "colorOrderLine",
+  "colorTpLine", "colorSlLine", "activeChartTemplate", "heatmapColorMap",
 ] as const;
 
 /**
@@ -153,33 +155,14 @@ const STRING_PREF_KEYS = [
  * drawing-mode) and the template bookkeeping keys themselves.
  */
 export const TEMPLATE_PREF_KEYS = [
-  "showBidLine",
-  "showAskLine",
-  "overlayPositionsOnChart",
-  "showWicks",
-  "showCandleBorders",
-  "showVolume",
-  "showGrid",
-  "showWatermark",
-  "showCountdown",
-  "showOhlcLegend",
-  "challengeOverlay",
-  "challengeDailyLossLine",
-  "challengeMaxDrawdownLine",
-  "challengeProfitTargetLine",
-  "candleUpColor",
-  "candleDownColor",
-  "colorBackground",
-  "colorGrid",
-  "colorScaleText",
-  "colorCrosshair",
-  "colorBidLine",
-  "colorAskLine",
-  "colorPositionLong",
-  "colorPositionShort",
-  "colorOrderLine",
-  "colorTpLine",
-  "colorSlLine",
+  "showBidLine", "showAskLine", "overlayPositionsOnChart", "showWicks",
+  "showCandleBorders", "showVolume", "showGrid", "showWatermark",
+  "showCountdown", "showOhlcLegend", "challengeOverlay",
+  "challengeDailyLossLine", "challengeMaxDrawdownLine", "challengeProfitTargetLine",
+  "candleUpColor", "candleDownColor", "colorBackground", "colorGrid",
+  "colorScaleText", "colorCrosshair", "colorBidLine", "colorAskLine",
+  "colorPositionLong", "colorPositionShort", "colorOrderLine",
+  "colorTpLine", "colorSlLine",
 ] as const;
 
 export type TemplatePrefKey = (typeof TEMPLATE_PREF_KEYS)[number];
@@ -189,7 +172,14 @@ function toMagnetMode(input: string | undefined): MagnetMode | undefined {
 }
 
 function toChartType(input: string | undefined): ChartType {
-  return input === "footprint" ? "footprint" : "candles";
+  if (input === "footprint") return "footprint";
+  if (input === "heatmap") return "heatmap";
+  return "candles";
+}
+
+function toSensitivity(input: string | undefined): "high" | "medium" | "low" {
+  if (input === "high" || input === "low") return input;
+  return "medium";
 }
 
 function readTraderPrefs(): TraderPrefs {
@@ -209,6 +199,12 @@ function toBool(input: string | undefined, fallback: boolean): boolean {
   return fallback;
 }
 
+function toNumber(input: string | undefined, fallback: number): number {
+  if (input == null) return fallback;
+  const num = Number(input);
+  return Number.isFinite(num) ? num : fallback;
+}
+
 function toStringArray(input: string | undefined, fallback: string[]): string[] {
   if (input == null) return fallback;
   try {
@@ -225,11 +221,15 @@ export function getChartPreferencesFromStorage(): ChartPreferences {
   for (const key of BOOL_PREF_KEYS) {
     result[key] = toBool(prefs[key], DEFAULT_CHART_PREFS[key]);
   }
+  for (const key of NUMBER_PREF_KEYS) {
+    result[key] = toNumber(prefs[key], DEFAULT_CHART_PREFS[key]);
+  }
   for (const key of STRING_PREF_KEYS) {
     result[key] = prefs[key] ?? DEFAULT_CHART_PREFS[key];
   }
   // Migrate the old boolean magnet flag to the tri-state when unset.
   result.chartType = toChartType(prefs.chartType);
+  result.heatmapSensitivity = toSensitivity(prefs.heatmapSensitivity);
   result.magnetMode =
     toMagnetMode(prefs.magnetMode) ?? (toBool(prefs.drawingMagnet, false) ? "weak" : "none");
   result.activePlugins = toStringArray(prefs.activePlugins, DEFAULT_CHART_PREFS.activePlugins);

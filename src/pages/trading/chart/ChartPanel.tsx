@@ -16,6 +16,7 @@ import { useChartOverlaysIntegration } from "./useChartOverlaysIntegration.ts";
 import { useChartPluginAttachment } from "./useChartPluginAttachment.ts";
 import { useChartStateRefs } from "./useChartStateRefs.ts";
 import { useFootprintAttachment } from "./useFootprintAttachment.ts";
+import { useHeatmapAttachment } from "./useHeatmapAttachment.ts";
 import { useDrawingManagerRefs } from "./useDrawingManagerRefs.ts";
 import { useDrawingSelectionState } from "./useDrawingSelectionState.ts";
 import { useRealtimeEffects } from "./useRealtimeEffects.ts";
@@ -177,6 +178,7 @@ export function ChartPanel({
       symbol: selectedSymbol,
       qc: queryClient,
       setLegend,
+      hoveredTime: refs.hoveredTimeRef,
     }),
     [colors, timeframe, selectedSymbol, queryClient, refs],
   );
@@ -222,6 +224,17 @@ export function ChartPanel({
     colors,
     chartEpoch,
     timeframe,
+  });
+
+  useHeatmapAttachment({
+    chartRef: refs.chartRef,
+    candleSeriesRef: refs.candleSeriesRef,
+    allCandlesRef,
+    chartType: chartPrefs.chartType,
+    colors,
+    chartEpoch,
+    timeframe,
+    chartPrefs,
   });
 
   return (

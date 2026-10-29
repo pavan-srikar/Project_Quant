@@ -184,6 +184,12 @@ Every file in `src/` is strictly under 300 lines with a single, clear responsibi
 - `footprint-generator.ts` — Generates price-level volume clusters conserving exact bar buy/sell volume and delta.
 - `footprint-types.ts` — Data structures for footprint price levels, POC flags, and summary stats.
 
+##### Liquidation Heatmap Subsystem (`src/lib/chart-plugins/heatmap/`)
+- `heatmap-primitive.ts` — Custom `ISeriesPrimitive` attaching CoinGlass-style liquidation heatmap behind candles (`zOrder: "bottom"`).
+- `heatmap-renderer.ts` — Canvas2D rasterizer rendering Viridis colormap liquidation trails, diffuse glow, cutoff edge markers, and vertical intensity color scale.
+- `heatmap-generator.ts` — Models leverage tiers (10x, 25x, 50x, 100x), computes liquidation thresholds from delta/volume, and simulates candle price sweep cutoffs.
+- `heatmap-types.ts` — Data structures for leverage tiers, liquidation pool bands, and resolved coordinates.
+
 ##### Drawing Tools Subsystem (`src/lib/chart-plugins/drawing-tools/`)
 - `manager.ts` — `DrawingToolsManager` coordinator orchestrating placement, editing, and events.
 - `pointer-manager.ts` — Binds DOM mouse and touch listeners, dispatching events to controllers.
@@ -300,12 +306,15 @@ Every file in `src/` is strictly under 300 lines with a single, clear responsibi
 - `useReplayMarkers.ts` — Hook placing entry/exit trade markers on chart during historical replay.
 - `useStalenessWatchdog.ts` — Hook detecting stalled data feeds and triggering fallback polling.
 - `useFootprintAttachment.ts` — Hook managing FootprintPrimitive attachment and candlestick opacity synchronization.
+- `useHeatmapAttachment.ts` — Hook managing HeatmapPrimitive attachment, lifecycle, and series styling.
 
 #### Chart Toolbar (`src/pages/trading/chart-toolbar/`)
 - `ChartToolbar.tsx` — Top horizontal bar coordinating symbol picker, timeframes, and menus.
 - `SymbolPicker.tsx` — Active symbol trigger button opening symbol search modal.
 - `TimeframeSelector.tsx` — Quick-select buttons for common timeframes (1m, 5m, 15m, 1h, 4h, 1d).
-- `ChartTypeSelector.tsx` — Dropdown selecting chart visualization (Candles vs. Footprint) replacing the top bar Bid/Ask badge.
+- `ChartTypeSelector.tsx` — Dropdown selecting chart visualization (Candles vs. Footprint vs. Liquidation Heatmap) with quick-settings gear buttons.
+- `ChartTypeSettingsModal.tsx` — Modal dialog providing dedicated controls for Heatmap (brightness, band thickness, floor opacity, colormaps), Footprint, and Candles.
+- `HeatmapSettingsTab.tsx` — Heatmap settings tab with intensity/brightness boost, band height, and colormap selectors.
 - `IndicatorMenu.tsx` — Dropdown toggling overlay and subchart indicators with fixed height scrollable list, search filtering, category tabs, and Pine Script import trigger.
 - `PineScriptImportModal.tsx` — Modal dialog for importing, pasting, editing, testing, and managing custom Pine Script indicators.
 - `DrawingToolsDropdown.tsx` — Dropdown menu for mobile or compact drawing tool access.

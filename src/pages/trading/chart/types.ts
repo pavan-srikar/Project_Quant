@@ -66,6 +66,7 @@ export interface RtCtx {
   symbol: string;
   qc: ReturnType<typeof useQueryClient>;
   setLegend: Dispatch<SetStateAction<OhlcvLegend | null>>;
+  hoveredTime?: Ref<Time | null>;
 }
 
 export interface LoadMoreState {
@@ -198,6 +199,7 @@ export interface ChartLifecycleParams {
   liveCandleTsRef: RefObject<number>;
   legendVolRef: RefObject<number>;
   legendRestoredRef: RefObject<boolean>;
+  hoveredTimeRef?: RefObject<Time | null>;
   lastGapRefetchAtRef: RefObject<number>;
   bidLineRef: RefObject<IPriceLine | null>;
   askLineRef: RefObject<IPriceLine | null>;

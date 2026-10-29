@@ -95,7 +95,11 @@ export function applyServerCandle(live: LiveCandleData, ctx: RtCtx): void {
     /* timestamp older than series — safe to ignore */
   }
   paintServerVolume(live, ts as Time, ctx);
-  ctx.setLegend(candleToLegend(bar, live.volume || 0, live.delta));
+  const isHoveringOther =
+    ctx.hoveredTime?.current != null && ctx.hoveredTime.current !== (bar.time as any);
+  if (!isHoveringOther) {
+    ctx.setLegend((prev) => candleToLegend(bar, live.volume || 0, live.delta ?? prev?.delta));
+  }
 }
 
 export function buildTickBar(
@@ -188,10 +192,14 @@ export function applyTick(tick: TickData, ctx: RtCtx): void {
     /* safe to ignore */
   }
   paintTickVolume(bar, isContinuation, bucketTime, ctx);
-  ctx.setLegend((prevLegend) => ({
-    ...candleToLegend(bar, 0),
-    v: isContinuation ? (prevLegend?.v ?? 0) : 0,
-  }));
+  const isHoveringOther =
+    ctx.hoveredTime?.current != null && ctx.hoveredTime.current !== (bar.time as any);
+  if (!isHoveringOther) {
+    ctx.setLegend((prev) => {
+      const v = isContinuation ? (prev?.v ?? ctx.legendVol.current) : ctx.legendVol.current;
+      return { ...candleToLegend(bar, v, prev?.delta), v, delta: prev?.delta };
+    });
+  }
 }
 
 export function liveBarFrom(
@@ -279,7 +287,7 @@ export function restoreLegendOnLeave(
   setLegend: Dispatch<SetStateAction<OhlcvLegend | null>>,
 ): void {
   if (!restored.current && lastCandle.current) {
-    setLegend(candleToLegend(lastCandle.current, legendVol.current));
+    setLegend((prev) => candleToLegend(lastCandle.current!, legendVol.current, prev?.delta));
   }
   restored.current = true;
 }

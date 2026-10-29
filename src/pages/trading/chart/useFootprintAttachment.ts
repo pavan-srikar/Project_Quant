@@ -1,5 +1,6 @@
 import { useEffect, useRef, type RefObject } from "react";
 import type { IChartApi, ISeriesApi } from "lightweight-charts";
+import type { ChartType } from "../../../hooks/useChartPreferences.ts";
 import { FootprintPrimitive } from "../../../lib/chart-plugins/footprint/footprint-primitive.ts";
 import type { Candle } from "../../../services/schemas.ts";
 import type { ChartColors } from "./types.ts";
@@ -8,7 +9,7 @@ export interface UseFootprintAttachmentParams {
   chartRef: RefObject<IChartApi | null>;
   candleSeriesRef: RefObject<ISeriesApi<"Candlestick"> | null>;
   allCandlesRef: RefObject<Candle[]>;
-  chartType: "candles" | "footprint";
+  chartType: ChartType;
   colors: ChartColors;
   chartEpoch: number;
   timeframe: string;
