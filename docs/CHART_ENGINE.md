@@ -33,6 +33,7 @@ src/pages/trading/chart/
 ├── useChartOptionSync.ts        # Syncs user theme/grid changes to chart options
 ├── useChartOverlaysIntegration.ts# Syncs overlay lines when candle data updates
 ├── useChartPluginAttachment.ts  # Attaches session breaks & delta tooltip plugins
+├── useFootprintAttachment.ts    # Attaches order flow footprint volume cluster primitive
 ├── useChartStateRefs.ts         # Stable refs preventing stale closure bugs
 ├── useDrawingManagerRefs.ts     # Links drawing manager callbacks to React state
 ├── useDrawingSelectionState.ts  # Tracks active selected and hovered drawing IDs
@@ -213,5 +214,20 @@ When switching timeframes on the same symbol (e.g. 4H → 1H, 4H → 30m), Tradi
   - `createChartWheelHandler` intercepts wheel events on the chart container.
   - When the oldest loaded historical bar is in view (`barsBefore <= 0` or `logicalRange.from <= 0`) and no further historical data exists, zoom-out (`deltaY > 0`) is intercepted and prevented, eliminating blank space drifts.
 
+---
 
+## 10. Volume Footprint Order Flow Subsystem (`src/lib/chart-plugins/footprint/`)
 
+- **Attachment & Lifecycle (`useFootprintAttachment.ts`)**:
+  - Mounts `FootprintPrimitive` to the active `CandlestickSeries`.
+  - When `chartType === "footprint"`: sets candle body and borders to transparent (revealing the central candle wicks and inner footprint clusters) and widens `barSpacing` to 72px for cluster legibility.
+  - When returning to `"candles"`: restores candle opacity and returns `barSpacing` to standard 14px.
+- **Generator (`footprint-generator.ts`)**:
+  - Generates price-level volume clusters strictly bounded between `candle.low` and `candle.high`.
+  - Exactly conserves Binance buy/sell volume and delta per candle.
+  - Flags Point of Control (POC) level with maximum volume and computes diagonal volume imbalances ($\ge 2.5\times$).
+- **Renderer (`footprint-renderer.ts`)**:
+  - **Candle Structure**: TradingView-styled central candle body with wicks and dotted High/Low ticks.
+  - **Volume Ladder**: Flanking Bid $\times$ Ask columns with proportional histogram fills and imbalance highlights.
+  - **POC Highlight**: High-contrast solid black POC box (`#000000`) with 1.5px white border and extension lines.
+  - **Bottom Readout**: Dynamically anchored below `maxBarY` (lowest pixel of clusters and wicks), rendering centered Sell/Buy totals followed by a compact high-contrast card (`rgba(18, 22, 34, 0.94)`) containing signed Delta and Total volume.

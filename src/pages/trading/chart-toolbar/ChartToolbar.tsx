@@ -1,9 +1,9 @@
 import { REPLAY_ENABLED } from "../constants.ts";
 import { ChartTemplatesMenu } from "../ChartTemplatesMenu.tsx";
 import { ReplayHUD } from "../ReplayHUD.tsx";
+import { ChartTypeSelector } from "./ChartTypeSelector.tsx";
 import { DrawingToolsDropdown } from "./DrawingToolsDropdown.tsx";
 import { IndicatorMenu } from "./IndicatorMenu.tsx";
-import { LivePriceBadge } from "./LivePriceBadge.tsx";
 import { PluginsDropdown } from "./PluginsDropdown.tsx";
 import { RightPanelSelector } from "./RightPanelSelector.tsx";
 import { SymbolPicker } from "./SymbolPicker.tsx";
@@ -29,8 +29,8 @@ export function ChartToolbar({
   onRightPanel,
   showRightPanel,
   onToggleRightPanel,
-  tick,
-  symbolInfo,
+  tick: _tick,
+  symbolInfo: _symbolInfo,
   aiTraderEnabled,
   isReplaying = false,
   replayAccountId,
@@ -42,6 +42,8 @@ export function ChartToolbar({
   onCycleMagnet,
   stayInDrawingMode = false,
   onToggleStayInDrawingMode,
+  chartType = "candles",
+  onChartTypeChange,
 }: ChartToolbarProps) {
   return (
     <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-[#2a2e39] bg-[#131722] text-xs shrink-0 overflow-x-auto md:overflow-visible flex-nowrap md:flex-wrap no-scrollbar">
@@ -53,12 +55,13 @@ export function ChartToolbar({
         onOpenSymbolSearch={onOpenSymbolSearch}
       />
 
-      {/* Live Price — bid / ask badges like TradingView */}
-      <LivePriceBadge
-        tick={tick}
-        symbolInfo={symbolInfo}
-        selectedSymbol={selectedSymbol}
-      />
+      {/* Chart View Type — TradingView style (Candles, Footprint) */}
+      {onChartTypeChange && (
+        <ChartTypeSelector
+          chartType={chartType}
+          onChangeChartType={onChartTypeChange}
+        />
+      )}
 
       {/* Timeframe Selector — locked to 1m while a replay session is active */}
       <TimeframeSelector

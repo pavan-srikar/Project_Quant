@@ -146,6 +146,7 @@ Every file in `src/` is strictly under 300 lines with a single, clear responsibi
 ### Core Libraries & Plugins (`src/lib/`)
 - `src/lib/indicators.ts` — Barrel facade re-exporting all technical indicator formulas.
 - `src/lib/colorUtils.ts` — Color parsing and formatting supporting Hex, RGB, and RGBA with alpha/opacity.
+- `src/lib/orderFlowDelta.ts` — Order flow calculations: taker buy/sell volume, net Bar Delta, Delta %, and Cumulative Volume Delta (CVD) series.
 - `src/lib/livePnl.ts` — Pure function calculating real-time unrealized PnL and return percentages.
 - `src/lib/utils.ts` — Common helper functions (`cn`, `formatNumber`, `hexToRgba`, `getErrorMessage`, etc.).
 
@@ -176,6 +177,12 @@ Every file in `src/` is strictly under 300 lines with a single, clear responsibi
 ##### Session Breaks (`src/lib/chart-plugins/session-breaks/`)
 - `session-breaks-primitive.ts` — Primitive rendering vertical session lines (Asian, London, NY opens).
 - `renderer.ts` — Canvas2D renderer for dotted vertical market session boundary lines.
+
+##### Volume Footprint Subsystem (`src/lib/chart-plugins/footprint/`)
+- `footprint-primitive.ts` — Custom `ISeriesPrimitive` attaching volume footprint cluster rendering to chart series.
+- `footprint-renderer.ts` — Canvas2D rasterizer rendering Bid × Ask volume profile ladders, text, POC boxes, and summary cards.
+- `footprint-generator.ts` — Generates price-level volume clusters conserving exact bar buy/sell volume and delta.
+- `footprint-types.ts` — Data structures for footprint price levels, POC flags, and summary stats.
 
 ##### Drawing Tools Subsystem (`src/lib/chart-plugins/drawing-tools/`)
 - `manager.ts` — `DrawingToolsManager` coordinator orchestrating placement, editing, and events.
@@ -292,12 +299,13 @@ Every file in `src/` is strictly under 300 lines with a single, clear responsibi
 - `useRealtimeEffects.ts` — Hook binding live tick subscribers to update series in real time.
 - `useReplayMarkers.ts` — Hook placing entry/exit trade markers on chart during historical replay.
 - `useStalenessWatchdog.ts` — Hook detecting stalled data feeds and triggering fallback polling.
+- `useFootprintAttachment.ts` — Hook managing FootprintPrimitive attachment and candlestick opacity synchronization.
 
 #### Chart Toolbar (`src/pages/trading/chart-toolbar/`)
 - `ChartToolbar.tsx` — Top horizontal bar coordinating symbol picker, timeframes, and menus.
 - `SymbolPicker.tsx` — Active symbol trigger button opening symbol search modal.
 - `TimeframeSelector.tsx` — Quick-select buttons for common timeframes (1m, 5m, 15m, 1h, 4h, 1d).
-- `ChartTypeSelector.tsx` — Dropdown selecting chart style (Candles, Line, Heikin Ashi).
+- `ChartTypeSelector.tsx` — Dropdown selecting chart visualization (Candles vs. Footprint) replacing the top bar Bid/Ask badge.
 - `IndicatorMenu.tsx` — Dropdown toggling overlay and subchart indicators with fixed height scrollable list, search filtering, category tabs, and Pine Script import trigger.
 - `PineScriptImportModal.tsx` — Modal dialog for importing, pasting, editing, testing, and managing custom Pine Script indicators.
 - `DrawingToolsDropdown.tsx` — Dropdown menu for mobile or compact drawing tool access.

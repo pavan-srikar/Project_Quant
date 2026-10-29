@@ -58,7 +58,11 @@ export interface ChartPreferences {
   challengeProfitTargetLine: boolean;
   /** Auto scale price axis to fit visible data. Default is false (manual). */
   autoScale: boolean;
+  /** Active chart type (candles or footprint). */
+  chartType: ChartType;
 }
+
+export type ChartType = "candles" | "footprint";
 
 type TraderPrefs = Record<string, string>;
 
@@ -100,6 +104,7 @@ const DEFAULT_CHART_PREFS: ChartPreferences = {
   challengeMaxDrawdownLine: false,
   challengeProfitTargetLine: false,
   autoScale: false,
+  chartType: "candles",
 };
 
 /** Boolean preference keys read straight through `toBool` with their default. */
@@ -183,6 +188,10 @@ function toMagnetMode(input: string | undefined): MagnetMode | undefined {
   return input === "weak" || input === "strong" || input === "none" ? input : undefined;
 }
 
+function toChartType(input: string | undefined): ChartType {
+  return input === "footprint" ? "footprint" : "candles";
+}
+
 function readTraderPrefs(): TraderPrefs {
   const userId = useAuthStore.getState().user?.id;
   return readScopedTraderPrefs(userId);
@@ -220,6 +229,7 @@ export function getChartPreferencesFromStorage(): ChartPreferences {
     result[key] = prefs[key] ?? DEFAULT_CHART_PREFS[key];
   }
   // Migrate the old boolean magnet flag to the tri-state when unset.
+  result.chartType = toChartType(prefs.chartType);
   result.magnetMode =
     toMagnetMode(prefs.magnetMode) ?? (toBool(prefs.drawingMagnet, false) ? "weak" : "none");
   result.activePlugins = toStringArray(prefs.activePlugins, DEFAULT_CHART_PREFS.activePlugins);

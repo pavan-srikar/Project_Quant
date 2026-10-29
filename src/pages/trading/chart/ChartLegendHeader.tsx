@@ -1,6 +1,7 @@
 import { Clock, Eye, EyeOff, Sliders, X } from "lucide-react";
 import type { IndicatorSettings } from "../../../hooks/useIndicatorSettings.ts";
 import type { IndicatorType } from "../../../lib/indicators.ts";
+import { formatDelta } from "../../../lib/orderFlowDelta.ts";
 import { getCustomPineIndicators } from "../../../lib/pinescript";
 import { cn } from "../../../lib/utils.ts";
 import type { Timeframe } from "../constants.ts";
@@ -61,6 +62,19 @@ export function OhlcvLegendRow({
         <>
           <span className="text-muted-foreground/70">V</span>
           <span className="text-foreground/60">{legend.v.toLocaleString()}</span>
+        </>
+      )}
+      {legend.delta !== undefined && (
+        <>
+          <span className="text-muted-foreground/70">Δ</span>
+          <span
+            className={cn(
+              "font-semibold",
+              legend.delta >= 0 ? "text-[#0ecb81]" : "text-[#f6465d]",
+            )}
+          >
+            {formatDelta(legend.delta)}
+          </span>
         </>
       )}
     </>

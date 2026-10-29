@@ -30,6 +30,8 @@ export interface LiveCandleData {
   close: number;
   volume: number;
   timestamp: number;
+  takerBuyVolume?: number;
+  delta?: number;
 }
 
 export interface TickData {
@@ -45,6 +47,7 @@ export interface OhlcvLegend {
   c: number;
   v: number;
   change: number;
+  delta?: number;
 }
 
 export interface RtCtx {

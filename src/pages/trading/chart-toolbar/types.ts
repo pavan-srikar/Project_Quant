@@ -1,3 +1,4 @@
+import type { ChartType } from "../../../hooks/useChartPreferences.ts";
 import type { IndicatorType } from "../../../lib/indicators.ts";
 import type {
   DrawingLine,
@@ -70,4 +71,6 @@ export interface ChartToolbarProps {
   onCycleMagnet?: () => void;
   stayInDrawingMode?: boolean;
   onToggleStayInDrawingMode?: () => void;
+  chartType?: ChartType;
+  onChartTypeChange?: (type: ChartType) => void;
 }

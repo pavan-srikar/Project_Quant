@@ -95,7 +95,7 @@ export function applyServerCandle(live: LiveCandleData, ctx: RtCtx): void {
     /* timestamp older than series — safe to ignore */
   }
   paintServerVolume(live, ts as Time, ctx);
-  ctx.setLegend(candleToLegend(bar, live.volume || 0));
+  ctx.setLegend(candleToLegend(bar, live.volume || 0, live.delta));
 }
 
 export function buildTickBar(

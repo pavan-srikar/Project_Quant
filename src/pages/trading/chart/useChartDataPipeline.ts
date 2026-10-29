@@ -7,25 +7,32 @@ import { useMemo } from "react";
 import type { Candle } from "../../../services/schemas.ts";
 import type { OhlcvLegend } from "./types.ts";
 
-export type CandleRow = CandlestickData<Time> & { volume: number };
+export type CandleRow = CandlestickData<Time> & {
+  volume: number;
+  takerBuyVolume?: number;
+  delta?: number;
+};
 
 export function candleToLegend(
   c: CandlestickData<Time>,
   volume: number,
+  delta?: number,
 ): OhlcvLegend {
   const change = c.open ? ((c.close - c.open) / c.open) * 100 : 0;
-  return { o: c.open, h: c.high, l: c.low, c: c.close, v: volume, change };
+  return { o: c.open, h: c.high, l: c.low, c: c.close, v: volume, change, delta };
 }
 
 export function legendFromSeries(
   chartData: CandlestickData<Time>[],
   volumeData: HistogramData<Time>[],
+  deduped?: CandleRow[],
 ): OhlcvLegend | null {
   const last = chartData[chartData.length - 1];
   if (!last) return null;
   const vol =
     volumeData.length > 0 ? (volumeData[volumeData.length - 1]?.value ?? 0) : 0;
-  return candleToLegend(last, vol);
+  const lastRow = deduped ? deduped[deduped.length - 1] : undefined;
+  return candleToLegend(last, vol, lastRow?.delta);
 }
 
 // Treat values below 1e12 as seconds, at/above as milliseconds.
@@ -44,13 +51,23 @@ export function candleTimeSec(c: Candle): number {
 }
 
 export function toCandleRow(c: Candle): CandleRow {
+  const volume = Number(c.volume) || 0;
+  const delta =
+    c.delta !== undefined
+      ? c.delta
+      : c.takerBuyVolume !== undefined
+        ? 2 * c.takerBuyVolume - volume
+        : undefined;
+
   return {
     time: candleTimeSec(c) as Time,
     open: Number(c.open),
     high: Number(c.high),
     low: Number(c.low),
     close: Number(c.close),
-    volume: Number(c.volume) || 0,
+    volume,
+    takerBuyVolume: c.takerBuyVolume,
+    delta,
   };
 }
 
@@ -77,14 +94,15 @@ export function useChartData(
     const deduped = dedupeByTime(sorted);
 
     const chartData: CandlestickData<Time>[] = deduped.map(
-      ({ volume: _v, ...rest }) => rest,
+      ({ volume: _v, takerBuyVolume: _tb, delta: _d, ...rest }) => rest,
     );
+
     const volumeData: HistogramData<Time>[] = deduped.map((c) => ({
       time: c.time,
       value: c.volume,
       color: c.close >= c.open ? colors.volumeUp : colors.volumeDown,
     }));
 
-    return { chartData, volumeData };
+    return { chartData, volumeData, deduped };
   }, [candles, colors.volumeUp, colors.volumeDown]);
 }

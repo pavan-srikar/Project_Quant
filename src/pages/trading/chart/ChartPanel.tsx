@@ -15,6 +15,7 @@ import { useChartLifecycle } from "./useChartLifecycle.ts";
 import { useChartOverlaysIntegration } from "./useChartOverlaysIntegration.ts";
 import { useChartPluginAttachment } from "./useChartPluginAttachment.ts";
 import { useChartStateRefs } from "./useChartStateRefs.ts";
+import { useFootprintAttachment } from "./useFootprintAttachment.ts";
 import { useDrawingManagerRefs } from "./useDrawingManagerRefs.ts";
 import { useDrawingSelectionState } from "./useDrawingSelectionState.ts";
 import { useRealtimeEffects } from "./useRealtimeEffects.ts";
@@ -211,6 +212,16 @@ export function ChartPanel({
     selectedSymbol,
     timeframe,
     symbolCategory: symbolInfo?.category,
+  });
+
+  useFootprintAttachment({
+    chartRef: refs.chartRef,
+    candleSeriesRef: refs.candleSeriesRef,
+    allCandlesRef,
+    chartType: chartPrefs.chartType,
+    colors,
+    chartEpoch,
+    timeframe,
   });
 
   return (

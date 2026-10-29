@@ -1,3 +1,4 @@
+import type { ChartType } from "../../hooks/useChartPreferences.ts";
 import type { Symbol } from "../../services/schemas.ts";
 import { ChartToolbar } from "../trading/ChartToolbar.tsx";
 import type {
@@ -40,6 +41,8 @@ export interface TradingPageHeaderProps {
   onCycleMagnet: () => void;
   stayInDrawingMode: boolean;
   onToggleStayInDrawingMode: () => void;
+  chartType?: ChartType;
+  onChartTypeChange?: (type: ChartType) => void;
 }
 
 export function TradingPageHeader({
@@ -74,6 +77,8 @@ export function TradingPageHeader({
   onCycleMagnet,
   stayInDrawingMode,
   onToggleStayInDrawingMode,
+  chartType,
+  onChartTypeChange,
 }: TradingPageHeaderProps) {
   return (
     <>
@@ -109,6 +114,8 @@ export function TradingPageHeader({
         onCycleMagnet={onCycleMagnet}
         stayInDrawingMode={stayInDrawingMode}
         onToggleStayInDrawingMode={onToggleStayInDrawingMode}
+        chartType={chartType}
+        onChartTypeChange={onChartTypeChange}
       />
       <MarketClosedBanner symbolInfo={symbolInfo} />
     </>

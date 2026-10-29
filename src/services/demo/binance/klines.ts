@@ -18,14 +18,20 @@ export async function fetchBinanceKlines(
   if (!res.ok) throw new Error(`Binance klines error (${binancePair} ${timeframe}): ${res.status}`);
   const rows = (await res.json()) as (number | string)[][];
 
-  return rows.map((row) => ({
-    time: Math.floor(Number(row[0]) / 1000),
-    open: Number(row[1]),
-    high: Number(row[2]),
-    low: Number(row[3]),
-    close: Number(row[4]),
-    volume: Number(row[5]),
-  }));
+  return rows.map((row) => {
+    const volume = Number(row[5]);
+    const takerBuy = row[9] !== undefined ? Number(row[9]) : undefined;
+    return {
+      time: Math.floor(Number(row[0]) / 1000),
+      open: Number(row[1]),
+      high: Number(row[2]),
+      low: Number(row[3]),
+      close: Number(row[4]),
+      volume,
+      takerBuyVolume: takerBuy,
+      delta: takerBuy !== undefined ? 2 * takerBuy - volume : undefined,
+    };
+  });
 }
 
 /**

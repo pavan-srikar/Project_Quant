@@ -165,6 +165,8 @@ export function TradingPage() {
         onToggleStayInDrawingMode={() =>
           updateChartPreferences({ stayInDrawingMode: !chartPrefs.stayInDrawingMode })
         }
+        chartType={chartPrefs.chartType}
+        onChartTypeChange={(type) => updateChartPreferences({ chartType: type })}
       />
 
       {/* ── Main Layout ──────────────────────────────────── */}
