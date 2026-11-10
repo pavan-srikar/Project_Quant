@@ -17,6 +17,7 @@ import {
   SettingsRow,
   StyleTools,
   VolumeProfileSettings,
+  WidthValueBox,
 } from "./settings/SettingControls";
 import { TextSettings } from "./settings/TextSettings";
 
@@ -68,7 +69,14 @@ export function LineStyleSection({
         </SettingsRow>
       )}
       <SettingsRow label="Width">
-        <WidthButtons current={drawing.width ?? 2} onPick={(width) => patch({ width })} />
+        {drawing.type === "rectangle" ? (
+          <WidthValueBox
+            value={drawing.width ?? 0}
+            onChange={(width) => patch({ width })}
+          />
+        ) : (
+          <WidthButtons current={drawing.width ?? 2} onPick={(width) => patch({ width })} />
+        )}
       </SettingsRow>
       <SettingsRow label="Style">
         <LineStyleButtons

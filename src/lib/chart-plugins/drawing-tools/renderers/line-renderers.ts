@@ -91,19 +91,18 @@ export function drawMidpointHandle(
   ctx.restore();
 }
 
-// Δprice / % / bars / angle readout near the second anchor (TV-style).
+// Δprice / % / bars / time duration readout near the second anchor (TV-style).
 export function drawStatsBox(
   scope: BitmapCoordinatesRenderingScope,
   at: BPt,
   stats: string[],
   d: { color: string },
-  from: BPt,
+  _from?: BPt,
 ): void {
   const ctx = scope.context;
   const hpr = scope.horizontalPixelRatio;
   const vpr = scope.verticalPixelRatio;
-  const angleDeg = Math.round((Math.atan2(from.y - at.y, at.x - from.x) * 180) / Math.PI);
-  const lines = [...stats, `${angleDeg}°`];
+  const lines = stats;
   ctx.save();
   ctx.font = `${Math.round(10 * vpr)}px monospace`;
   const lineH = 13 * vpr;

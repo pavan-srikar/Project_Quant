@@ -106,13 +106,20 @@ export function renderRectangle(scope: BitmapCoordinatesRenderingScope, e: Resol
   const a = toBitmap(scope, e.x1, e.y1);
   const b = toBitmap(scope, e.x2, e.y2);
   const ctx = scope.context;
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+  const w = Math.abs(b.x - a.x);
+  const h = Math.abs(b.y - a.y);
   ctx.save();
-  ctx.fillStyle = hexToRgba(e.d.color, RECT_FILL_ALPHA);
-  ctx.fillRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
-  ctx.strokeStyle = e.d.color;
-  ctx.lineWidth = (e.d.width ?? 1.5) * scope.verticalPixelRatio;
-  applyDash(scope, dashFor(e.d.lineStyle));
-  ctx.strokeRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+  ctx.fillStyle = hexToRgba(e.d.fillColor ?? e.d.color, e.d.fillOpacity ?? RECT_FILL_ALPHA);
+  ctx.fillRect(x, y, w, h);
+  const borderWidth = e.d.width ?? 0;
+  if (borderWidth > 0) {
+    ctx.strokeStyle = e.d.color;
+    ctx.lineWidth = borderWidth * scope.verticalPixelRatio;
+    applyDash(scope, dashFor(e.d.lineStyle));
+    ctx.strokeRect(x, y, w, h);
+  }
   ctx.restore();
   if (showHandles(e)) drawRectHandles(scope, a, b, e.d.color);
 }

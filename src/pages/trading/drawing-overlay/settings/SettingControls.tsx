@@ -79,6 +79,65 @@ export function FillControls({
   );
 }
 
+export function WidthValueBox({
+  value,
+  onChange,
+  min = 0,
+  max = 20,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  min?: number;
+  max?: number;
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      <div className="relative flex items-center">
+        <input
+          type="number"
+          min={min}
+          max={max}
+          step={1}
+          value={value}
+          onChange={(e) => {
+            const raw = e.target.value;
+            if (raw === "") {
+              onChange(0);
+              return;
+            }
+            const v = Number.parseInt(raw, 10);
+            if (!Number.isNaN(v)) {
+              onChange(Math.max(min, Math.min(max, v)));
+            }
+          }}
+          className="bg-secondary text-xs rounded px-2 py-1 pr-6 border border-border w-20 text-right font-mono focus:outline-none focus:border-primary transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        />
+        <span className="absolute right-2 text-[10px] text-muted-foreground pointer-events-none select-none">
+          px
+        </span>
+      </div>
+      <div className="flex flex-col">
+        <button
+          type="button"
+          onClick={() => onChange(Math.min(max, value + 1))}
+          className="h-3.5 px-1.5 bg-secondary hover:bg-secondary/70 border border-border rounded-t flex items-center justify-center text-[8px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer select-none leading-none"
+          title="Increase width"
+        >
+          ▲
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(Math.max(min, value - 1))}
+          className="h-3.5 px-1.5 bg-secondary hover:bg-secondary/70 border border-t-0 border-border rounded-b flex items-center justify-center text-[8px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer select-none leading-none"
+          title="Decrease width"
+        >
+          ▼
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function ArrowheadToggles({
   drawing,
   patch,

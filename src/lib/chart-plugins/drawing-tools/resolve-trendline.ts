@@ -4,14 +4,35 @@ import type { ResolveCtx } from "./coords";
 
 export type Segment = NonNullable<ResolvedEntry["seg"]>;
 
-// Δprice / % / bar-count readout shown while drawing or selected (TV-style).
+export function formatDuration(sec: number): string {
+  const totalMinutes = Math.round(Math.abs(sec) / 60);
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const mins = totalMinutes % 60;
+
+  if (days > 0) {
+    return `${days}d ${hours}h ${mins}m`;
+  }
+  if (hours > 0) {
+    return `${hours}h ${mins}m`;
+  }
+  return `${mins}m`;
+}
+
+// Δprice / % / bar-count / time duration readout shown while drawing or selected (TV-style).
 export function trendlineStats(d: DrawingLine, ctx: ResolveCtx): string[] {
   if (d.price2 == null || d.time == null || d.time2 == null) return [];
   const dp = d.price2 - d.price;
   const pct = d.price !== 0 ? (dp / d.price) * 100 : 0;
-  const bars = ctx.intervalSec > 0 ? Math.round(Math.abs(d.time2 - d.time) / ctx.intervalSec) : 0;
+  const dtSec = Math.abs(d.time2 - d.time);
+  const bars = ctx.intervalSec > 0 ? Math.round(dtSec / ctx.intervalSec) : 0;
   const formatted = ctx.series.priceFormatter().format(Math.abs(dp));
-  return [`${dp >= 0 ? "+" : "−"}${formatted} (${pct.toFixed(2)}%)`, `${bars} bars`];
+  const duration = formatDuration(dtSec);
+  return [
+    `${dp >= 0 ? "+" : "−"}${formatted} (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`,
+    `${bars} bars`,
+    duration,
+  ];
 }
 
 // The drawn/hit segment for a trendline: the anchors (ordered left→right),

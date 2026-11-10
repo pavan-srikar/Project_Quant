@@ -34,6 +34,7 @@ src/pages/trading/chart/
 ├── useChartOverlaysIntegration.ts# Syncs overlay lines when candle data updates
 ├── useChartPluginAttachment.ts  # Attaches session breaks & delta tooltip plugins
 ├── useFootprintAttachment.ts    # Attaches order flow footprint volume cluster primitive
+├── useHeatmapAttachment.ts      # Attaches liquidation heatmap primitive & manages visibility
 ├── useChartStateRefs.ts         # Stable refs preventing stale closure bugs
 ├── useDrawingManagerRefs.ts     # Links drawing manager callbacks to React state
 ├── useDrawingSelectionState.ts  # Tracks active selected and hovered drawing IDs

@@ -61,8 +61,11 @@ This document catalogs non-obvious engineering gotchas, solved bugs, and archite
 ### C. Single Source of Truth for Utilities
 - Never duplicate helper functions (`getErrorMessage`, `formatNumber`, `hexToRgba`). Import from `src/lib/utils.ts`.
 
-### D. Always Consult ARCHITECTURE.md
-- AI agents and engineers must read `docs/ARCHITECTURE.md` before starting any task to inspect only relevant files without scanning the entire repo.
+### D. Always Consult ARCHITECTURE.md & Feature Docs First
+- AI agents and engineers must read `docs/ARCHITECTURE.md` to identify the subsystem, then open the specific feature doc in `docs/` to inspect ONLY the relevant 1-2 files without scanning the entire repo.
+
+### E. Keep Documentation In Sync With Code
+- Whenever modifying code, changing interfaces, fixing bugs, or adding new capabilities, ALWAYS update the corresponding feature doc in `docs/` (and `ARCHITECTURE.md` if high-level routes change) so the documentation stays 100% current and authoritative for future prompt sessions.
 
 ---
 

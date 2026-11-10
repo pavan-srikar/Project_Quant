@@ -1,12 +1,43 @@
+import {
+  CandlestickChart,
+  Check,
+  ChevronDown,
+  Flame,
+  Settings,
+} from "lucide-react";
+import type { ComponentType } from "react";
 import { useEffect, useRef, useState } from "react";
 import type { ChartType } from "../../../hooks/useChartPreferences.ts";
 import { ChartTypeSettingsModal } from "./ChartTypeSettingsModal.tsx";
+
+export function FootprintIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 2v3m0 14v3" />
+      <rect x="4" y="5" width="7" height="4" rx="0.5" fill="currentColor" fillOpacity="0.2" />
+      <rect x="13" y="5" width="5" height="4" rx="0.5" fill="currentColor" fillOpacity="0.3" />
+      <rect x="3" y="10" width="8" height="4" rx="0.5" fill="currentColor" fillOpacity="0.4" />
+      <rect x="13" y="10" width="8" height="4" rx="0.5" fill="currentColor" fillOpacity="0.5" />
+      <rect x="5" y="15" width="6" height="4" rx="0.5" fill="currentColor" fillOpacity="0.2" />
+      <rect x="13" y="15" width="6" height="4" rx="0.5" fill="currentColor" fillOpacity="0.3" />
+      <line x1="12" y1="5" x2="12" y2="19" />
+    </svg>
+  );
+}
 
 export interface ChartTypeOption {
   type: ChartType;
   label: string;
   description: string;
-  icon: string;
+  icon: ComponentType<{ className?: string }>;
 }
 
 export const CHART_TYPE_OPTIONS: ChartTypeOption[] = [
@@ -14,19 +45,19 @@ export const CHART_TYPE_OPTIONS: ChartTypeOption[] = [
     type: "candles",
     label: "Candles",
     description: "Standard Japanese Candlesticks",
-    icon: "🕯️",
+    icon: CandlestickChart,
   },
   {
     type: "footprint",
     label: "Footprint",
     description: "Bid × Ask volume clusters at price levels",
-    icon: "🪜",
+    icon: FootprintIcon,
   },
   {
     type: "heatmap",
     label: "Liquidation Heatmap",
     description: "Estimated leveraged liquidation pools",
-    icon: "🌋",
+    icon: Flame,
   },
 ];
 
@@ -46,6 +77,7 @@ export function ChartTypeSelector({
 
   const activeOption: ChartTypeOption =
     CHART_TYPE_OPTIONS.find((opt) => opt.type === chartType) ?? CHART_TYPE_OPTIONS[0]!;
+  const ActiveIcon = activeOption.icon;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -80,19 +112,11 @@ export function ChartTypeSelector({
               : "text-neutral-300 hover:text-white hover:bg-[#202430] border-transparent"
           }`}
         >
-          <span className="text-sm leading-none">{activeOption.icon}</span>
+          <ActiveIcon className="w-3.5 h-3.5 text-neutral-300" />
           <span className="hidden sm:inline font-semibold">{activeOption.label}</span>
-          <svg
+          <ChevronDown
             className={`w-3 h-3 text-neutral-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
-            viewBox="0 0 20 20"
-            fill="currentColor"
-          >
-            <path
-              fillRule="evenodd"
-              d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z"
-              clipRule="evenodd"
-            />
-          </svg>
+          />
         </button>
 
         {/* Quick Settings Gear Button in Top Toolbar */}
@@ -106,13 +130,7 @@ export function ChartTypeSelector({
           title={`Configure ${activeOption.label} Settings`}
           className="p-1 ml-0.5 rounded text-neutral-400 hover:text-white hover:bg-[#202430] transition-colors"
         >
-          <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-            <path
-              fillRule="evenodd"
-              d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
-              clipRule="evenodd"
-            />
-          </svg>
+          <Settings className="w-3.5 h-3.5" />
         </button>
 
         {/* Dropdown Menu */}
@@ -124,6 +142,7 @@ export function ChartTypeSelector({
             <div className="py-1">
               {CHART_TYPE_OPTIONS.map((opt) => {
                 const isSelected = opt.type === chartType;
+                const OptionIcon = opt.icon;
                 return (
                   <div
                     key={opt.type}
@@ -138,7 +157,7 @@ export function ChartTypeSelector({
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-base leading-none">{opt.icon}</span>
+                      <OptionIcon className="w-4 h-4 shrink-0 text-neutral-300 group-hover:text-white" />
                       <div className="flex flex-col">
                         <span>{opt.label}</span>
                         <span className="text-[10px] text-neutral-400 font-normal leading-tight">
@@ -146,31 +165,9 @@ export function ChartTypeSelector({
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      {isSelected && (
-                        <span className="text-[#2962ff] text-sm leading-none font-bold">✓</span>
-                      )}
-                      {/* Individual Settings Gear Icon next to each option */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSettingsTab(opt.type);
-                          setIsSettingsOpen(true);
-                          setIsOpen(false);
-                        }}
-                        title={`${opt.label} Settings`}
-                        className="p-1 rounded text-neutral-400 hover:text-white hover:bg-[#3b4150] transition-colors"
-                      >
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-                          <path
-                            fillRule="evenodd"
-                            d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </button>
-                    </div>
+                    {isSelected && (
+                      <Check className="w-3.5 h-3.5 text-[#2962ff] shrink-0" />
+                    )}
                   </div>
                 );
               })}

@@ -62,6 +62,10 @@ All visual JSX elements, styling classes, and user-facing dialogs belong in:
 - If adding code causes a file to approach 300 lines, extract single-responsibility helpers, hooks, or subcomponents into a dedicated subdirectory.
 - Always provide a facade barrel file if moving or splitting public components to guarantee backward compatibility.
 
+### Documentation Synchronization (Strict Invariant)
+- **Feature Docs**: Whenever you make changes in code (logic, types, UI, parameters, or new features), ALWAYS update the corresponding feature doc in `docs/` (e.g. `docs/CHART_ENGINE.md`, `docs/TRADING_ENGINE.md`, etc.) to keep documentation strictly in sync with the codebase.
+- **Architecture Doc**: If any file structure changes or a subsystem is decomposed, update `docs/ARCHITECTURE.md`.
+
 ---
 
 ## 4. How to Run, Test, and Build Each Part

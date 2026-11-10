@@ -1,9 +1,12 @@
+import { CandlestickChart, Flame, Settings, X } from "lucide-react";
+import type { ComponentType } from "react";
 import { useEffect, useState } from "react";
 import {
   updateChartPreferences,
   useChartPreferences,
   type ChartType,
 } from "../../../hooks/useChartPreferences.ts";
+import { FootprintIcon } from "./ChartTypeSelector.tsx";
 import { HeatmapSettingsTab } from "./HeatmapSettingsTab.tsx";
 
 export interface ChartTypeSettingsModalProps {
@@ -12,10 +15,14 @@ export interface ChartTypeSettingsModalProps {
   initialTab?: ChartType;
 }
 
-const TABS: Array<{ type: ChartType; label: string; icon: string }> = [
-  { type: "heatmap", label: "Liquidation Heatmap", icon: "🌋" },
-  { type: "footprint", label: "Footprint", icon: "🪜" },
-  { type: "candles", label: "Candles", icon: "🕯️" },
+const TABS: Array<{
+  type: ChartType;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+}> = [
+  { type: "heatmap", label: "Liquidation Heatmap", icon: Flame },
+  { type: "footprint", label: "Footprint", icon: FootprintIcon },
+  { type: "candles", label: "Candles", icon: CandlestickChart },
 ];
 
 export function ChartTypeSettingsModal({
@@ -46,7 +53,7 @@ export function ChartTypeSettingsModal({
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2e39] bg-[#181b24]">
           <div className="flex items-center gap-2">
-            <span className="text-sm">⚙️</span>
+            <Settings className="w-4 h-4 text-[#2962ff]" />
             <span className="font-semibold text-sm text-white">Chart Visualization Settings</span>
           </div>
           <button
@@ -54,27 +61,30 @@ export function ChartTypeSettingsModal({
             onClick={onClose}
             className="text-neutral-400 hover:text-white p-1 rounded hover:bg-[#2a2e39] transition-colors"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Tab Navigation */}
         <div className="flex border-b border-[#2a2e39] bg-[#141720]">
-          {TABS.map((tab) => (
-            <button
-              key={tab.type}
-              type="button"
-              onClick={() => setActiveTab(tab.type)}
-              className={`flex-1 py-2.5 px-3 flex items-center justify-center gap-1.5 font-medium transition-colors border-b-2 ${
-                activeTab === tab.type
-                  ? "border-[#2962ff] text-white bg-[#1e222d]"
-                  : "border-transparent text-neutral-400 hover:text-neutral-200 hover:bg-[#1a1d27]"
-              }`}
-            >
-              <span>{tab.icon}</span>
-              <span>{tab.label}</span>
-            </button>
-          ))}
+          {TABS.map((tab) => {
+            const TabIcon = tab.icon;
+            return (
+              <button
+                key={tab.type}
+                type="button"
+                onClick={() => setActiveTab(tab.type)}
+                className={`flex-1 py-2.5 px-3 flex items-center justify-center gap-1.5 font-medium transition-colors border-b-2 ${
+                  activeTab === tab.type
+                    ? "border-[#2962ff] text-white bg-[#1e222d]"
+                    : "border-transparent text-neutral-400 hover:text-neutral-200 hover:bg-[#1a1d27]"
+                }`}
+              >
+                <TabIcon className="w-3.5 h-3.5" />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Tab Content */}

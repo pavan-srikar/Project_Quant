@@ -15,6 +15,7 @@ import {
   type DrawingLineStyle,
 } from "../constants.ts";
 import { LINE_STYLES, type DrawingToolbarProps } from "./types";
+import { WidthValueBox } from "./settings/SettingControls";
 
 function Divider() {
   return <div className="h-4 border-l border-border mx-0.5" />;
@@ -116,7 +117,11 @@ export function DrawingFloatingToolbar({
     <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 px-2 py-1 rounded-lg bg-card border border-border shadow-xl">
       <ColorPicker compact value={drawing.color} onChange={(color) => patch({ color })} />
       <Divider />
-      <WidthButtons current={drawing.width ?? 2} onPick={(width) => patch({ width })} />
+      {drawing.type === "rectangle" ? (
+        <WidthValueBox value={drawing.width ?? 0} onChange={(width) => patch({ width })} />
+      ) : (
+        <WidthButtons current={drawing.width ?? 2} onPick={(width) => patch({ width })} />
+      )}
       <Divider />
       <LineStyleButtons
         current={drawing.lineStyle ?? "solid"}

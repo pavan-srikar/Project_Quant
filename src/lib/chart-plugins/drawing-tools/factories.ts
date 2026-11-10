@@ -146,6 +146,7 @@ export function buildNew(
     };
   }
   if (tool === "text") return { ...two, type: "text", text: "Text" };
+  if (tool === "rectangle") return { ...two, type: "rectangle", width: 0 };
   return { ...two, type: tool as DrawingType };
 }
 
