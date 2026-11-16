@@ -26,6 +26,10 @@ This document catalogs non-obvious engineering gotchas, solved bugs, and archite
   3. Pass `chartEpoch` to `useIndicatorSeries` and include it in its dependencies.
   4. Synchronize `visibleLogicalRange` with `mainChart` immediately and on RAF in both update and rebuild paths.
 
+### E. Infinite Animation Frame Loop in Custom Series Primitives
+- **Gotcha**: If a custom series primitive (`ISeriesPrimitive`) implements `protected dataUpdated()` and calls `this.requestUpdate()`, Lightweight Charts schedules another animation frame to redraw. When redrawn, `dataUpdated` fires again, creating an infinite 60+ FPS loop that consumes 100% CPU and generates millions of temporary coordinate objects, bloating V8 memory into gigabytes.
+- **Fix**: Never invoke `this.requestUpdate()` inside `dataUpdated()`. Only update internal view states, allowing the chart's existing render cycle to pick up the updated views naturally.
+
 ---
 
 ## 2. React & High-Frequency State Gotchas
@@ -151,6 +155,20 @@ This document catalogs non-obvious engineering gotchas, solved bugs, and archite
   3. Track `lastVisibleEndTime = candleAtRight.time + TF_SECONDS[oldTf]` and anchor on the new timeframe with `anchorTime = lastVisibleEndTime - TF_SECONDS[newTf]`.
   4. Guard anchor clearance in `useRealtimeEffects`: verify `Number(chartData[0]!.time) <= anchor.toTime + 86400 * 30`. If incoming data is stale live data while historical fetch is in-flight, retain the anchor and do not reframe until real historical data arrives.
   5. Apply `ts.applyOptions({ barSpacing, rightOffset })` BEFORE `ts.setVisibleLogicalRange({ from, to })` so options do not overwrite the logical range.
+
+---
+
+## 4. Pine Script Engine & Compatibility Gotchas
+
+### A. Pine Script v4 Compatibility & `ClosedWorldViolation`
+- **Trap**: Thousands of popular indicators in circulation use Pine Script v4 syntax (`//@version=4`, `study(...)`, untyped `input(...)`, and global built-ins like `rsi(...)`, `macd(...)`, `pivothigh(...)`). PineTS strictly rejects version 4. Furthermore, PineTS's `ClosedWorldVerifier` throws `ClosedWorldViolation: Undeclared identifier` if a nested expression inside a series index (e.g. `close[array.get(all_divs, x)]`) fails AST variable scoping.
+- **Fix**:
+  1. `pineMigrator.ts` automatically transpiles v1–v4 code into v5: upgrades headers, namespaces technical functions to `ta.*`, math to `math.*`, string conversions to `str.tostring`, and infers typed inputs (`input.int`, `input.float`, `input.bool`, etc.).
+  2. Series history indexing expressions containing function calls (e.g. `[array.get(...)]` or `[ta.barssince(...)]`) are automatically hoisted into temporary local variables (e.g. `__h_idx_0 = ...`) immediately prior to the statement, ensuring 100% clean compilation and scoping in PineTS.
+
+### B. Multi-Line Label Canvas Rendering
+- **Trap**: Pine Script indicators (such as multi-indicator divergence monitors) generate multi-line labels separated by `\n` (e.g. `"Hist\nRSI\nStoch\nOBV\n7"`). The standard HTML5 2D Canvas `fillText()` method does not process newline characters, resulting in broken or single-line rendering.
+- **Fix**: In `PineFgRenderer` (`pine-renderer-primitive.ts`), all label strings are split by `\n`. The renderer computes the maximum line width and total badge height (`lines.length * lineHeight + 4`), draws the background rounded rectangle, and renders each line centered vertically and horizontally.
 
 
 

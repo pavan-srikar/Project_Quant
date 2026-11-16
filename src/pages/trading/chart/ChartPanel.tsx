@@ -5,6 +5,7 @@ import { useChartPreferences } from "../../../hooks/useChartPreferences.ts";
 import { CHART_COLORS, mergeChartColors } from "../constants.ts";
 import { DrawingToolRail } from "../DrawingToolRail.tsx";
 import { ChartLegendHeader } from "./ChartLegendHeader.tsx";
+import { PineTablesOverlay } from "./PineTablesOverlay.tsx";
 import { ChartPanelDialogs } from "./ChartPanelDialogs.tsx";
 import { DragPriceTooltip } from "./DragPriceTooltip.tsx";
 import type { ChartPanelProps, OhlcvLegend, RtCtx } from "./types.ts";
@@ -140,7 +141,7 @@ export function ChartPanel({
     ...drawingRefs,
   });
 
-  const { dragPrice } = useChartOverlaysIntegration({
+  const { dragPrice, pineTables } = useChartOverlaysIntegration({
     containerRef: refs.containerRef,
     chartRef: refs.chartRef,
     candleSeriesRef: refs.candleSeriesRef,
@@ -256,6 +257,7 @@ export function ChartPanel({
       />
 
       <DragPriceTooltip dragPrice={dragPrice} pipDigits={pipDigits} />
+      <PineTablesOverlay tables={pineTables} />
 
       <ChartPanelDialogs
         selection={selectionState}

@@ -22,6 +22,9 @@ src/
 │       ├── evaluator.ts              # Mathematical AST evaluation VM over candles
 │       ├── pineVM.ts                 # Universal Pine Script Virtual Machine & Drawing Coordinator
 │       ├── pineRuntime.ts            # Dynamic drawing heap (boxes, lines, labels) & series cache
+│       ├── pineMigrator.ts           # Universal Pine Script v4 -> v5 transpiler & series call hoisting
+│       ├── pineTSRunner.ts           # PineTS runner, LRU execution caching & plot/drawing pipeline
+│       ├── pineTSExtractors.ts       # Drawing extractors (boxes, lines, labels, polylines, tables)
 │       ├── mathFunctions.ts          # Pure series TA math (SMA, EMA, RSI, MACD, Stdev, Cross, PivotHigh/Low)
 │       ├── forecastEngine.ts         # LuxAlgo MACD price forecasting simulation & percentile cloud
 │       ├── liquiditySweepsEngine.ts  # LuxAlgo Liquidity Sweeps box/line simulation & breakout detection
@@ -134,11 +137,14 @@ Traders can import TradingView Pine Script (v4/v5) files or paste code into the 
    - **Universal Historical Barstate & Syminfo Shims**:
      - Evaluates `barstate.isconfirmed` as true for historical candle calculation, strictly adhering to TradingView's specification where historical bars are closed and confirmed.
      - Automatically supplies a robust price tick resolution fallback for `syminfo.mintick`, preventing `NaN` arithmetic cascades in volatility corridors, rolling profiles, and breakout filters.
+     - Multi-variable tuple de-structuring and graceful shimming for `request.security_lower_tf` (supporting 1-tuple, 3-tuple, and 5-tuple forms like `[io, ih, il, ic, iv]`).
+     - Supplies standard Kline timestamps (`openTime` and `closeTime`), unlocking native Pine Script date/session functions (`timeframe.change("D")`, `timeframe.change("W")`, `timeframe.change("M")`, `time_close`, and session anchor resets).
+     - Automatic trailing garbage/stray keyword truncation for pasted user notes or dangling connector keywords.
    - **Universal Graphical Primitives Extraction**:
      - **Candle Corridors & Profiles (`plotcandle`)**: Directly maps `plotcandle` layers (such as Zeiierman rolling candle pressure corridors and volume delta heatmaps) into bar-aligned bounding boxes with exact alpha tinting and background colors.
      - **Shaded Ribbon Polygon Fills (`fill`)**: Extracts `fill(...)` directives between plot series and hlines, mapping top and bottom values into continuous polygon bands with support for custom alpha and gradient values.
-     - **Dynamic Labels & Badges (`label.new`)**: Maps labels with rounded pill badge backgrounds (for BUY/SELL signals), white or custom text colors, vertical styles (`style_label_up`, `style_label_down`, `style_label_center`), and dynamic font sizing (`tiny` to `huge`).
-     - **Lines & Level Boxes**: Seamlessly extracts and maps native `box.new`, `line.new`, and `polyline.new` objects with exact colors, widths, styles, and text into chart primitives.
+     - **Dynamic Labels & Badges (`label.new`)**: Maps labels with rounded pill badge backgrounds or clean floating text with dark drop shadows, white or custom text colors, vertical styles (`style_label_up`, `style_label_down`, `style_label_center`), and dynamic font sizing (`tiny` to `huge`).
+     - **Lines & Level Boxes**: Seamlessly extracts and maps native `box.new`, `line.new`, and `polyline.new` objects with exact colors, widths, styles, and text into chart primitives. Automatically suppresses default `#2962ff` borders when no border is specified and skips collapsed 0-width boxes.
    - **Input Overrides Integration**: Seamlessly maps reactive settings overrides (`customInputs`) to input definitions before execution.
    - **Supported TA functions**: `ta.sma`, `ta.ema`, `ta.rma` (Wilder's Running Moving Average), `ta.rsi`, `ta.atr`, `ta.highest`, `ta.lowest`, `ta.macd`, `ta.stdev`, `ta.cross`, `ta.crossover`, `ta.crossunder`, `ta.pivothigh`, `ta.pivotlow`.
    - **Supported Math & utility functions**: `math.abs`, `math.max`, `math.min`, `math.round`, `math.sqrt`, `nz`, `na`.
@@ -152,15 +158,23 @@ Traders can import TradingView Pine Script (v4/v5) files or paste code into the 
    - Projects prices to canvas $Y$ coordinates via `series.priceToCoordinate()`.
    - Renders forward-projected **Forecast Cones** (shaded percentile cloud + upper/lower boundary strokes + trajectory midline) directly in future whitespace.
    - Automatically expands time scale `rightOffset` (45–80 bars) and adjusts visible logical range so the forward prediction is framed in full view without being clipped.
-   - Implements `autoscaleInfo` so the vertical price scale smoothly adapts to the forecast cone.
+   - Decoupled `autoscaleInfo` ensures chart vertical scale is anchored exclusively to candlestick price action, preventing runaway drawing bounds from compressing candles.
    - Suppresses fills when one of the plots has `display = display.none` per Pine Script v5 specification.
-4. **Pane Routing**:
-   - `overlay=true`: Injected as dynamic series and canvas primitives on the main candlestick chart.
-   - `overlay=false`: Dynamically mounts as an isolated pane in `BottomIndicatorsPanel`, rendering all visible plots (lines, columns, or histograms) and associated horizontal boundary levels (`hline`).
+4. **Pane Routing & Drawing Separation**:
+   - `overlay=true`: Injected as dynamic series and canvas primitives on the main candlestick chart. Tables and overlay drawings render directly on the main chart viewport.
+   - `overlay=false`: Dynamically mounts as an isolated pane in `BottomIndicatorsPanel`, rendering all visible plots (lines, columns, histograms, areas, and step-lines) with full PineTS AST execution and associated horizontal boundary levels (`hline`). Sub-chart shapes (`plotshape` / milestone circles, continuation diamonds, and exhaustion markers) are rendered directly inside the sub-chart canvas via a pane-level `PineRendererPrimitive`.
+   - **Cross-Pane `force_overlay=true` Forwarding**: Any drawings created by sub-chart indicators with `force_overlay=true` (such as `Trend Exhaustion`'s 25 outer trend leg container boxes and birth/exhaustion diamonds) are automatically routed to the main chart candlestick primitive instead of polluting or distorting the oscillator's scale.
+   - **Floating Pine Table HUD (`PineTablesOverlay.tsx`)**: Directly renders native Pine tables (`table.new`, `table.cell`, `table.merge_cells`) as clean TradingView-grade floating HUD cards (e.g. AlgoAlpha VWAP status dashboards and trend scanners) with exact positions (`top_right`, `bottom_left`, etc.), cell backgrounds, font sizes, text alignments, borders, and hover tooltips.
 5. **Universal Editor Modal (`PineScriptEditorModal.tsx`)**: Syntax highlighting, validation against active candles, and direct save & apply changes.
-6. **1:1 TradingView Primitive Rendering Fidelity**:
-   - `PineRendererPrimitive`: Renders boxes with column-width alignment (`halfBar` coverage), dashed/dotted level lines with accurate dash array patterns (`[4, 4]`), and clean labels with 6px vertical standoff and crisp typography.
-   - `pineTSRunner`: Automatically filters out deleted or transparent (`color = na`, `#00000000`) lines and boxes, eliminating stray placeholder artifacts.
+6. **1:1 TradingView Primitive Rendering Fidelity & High-Performance Caching**:
+   - `PineRendererPrimitive`: Renders boxes with column-width alignment (`halfBar` coverage), dashed/dotted level lines with accurate dash array patterns (`[4, 4]`), and clean floating labels with 6px vertical standoff, dark drop shadows, and exact TradingView style placement.
+   - **Infinite RAF Loop Elimination**: `PineRendererPrimitive.dataUpdated` strictly updates internal views without invoking `this.requestUpdate()`, preventing cascading animation frame loops between series data updates and canvas redraws.
+   - **Fill Band Viewport Culling**: Polyline ribbons and shaded fills index candle coordinates chronologically and cull points outside $[minBar - 5, maxBar + 5]$, eliminating redundant coordinate projections and reducing per-frame canvas operations by over 95%.
+   - **Universal PineTS Evaluation LRU Cache**: `runPineTS` maintains a 16-slot AST evaluation cache keyed on script hash, inputs, candle count, and last bar timestamp, eliminating duplicate VM executions across overlay and sub-chart consumers.
+   - **Line Series `setData` Deduplication**: Overlay series verify whether incoming data keys have changed before invoking `setData`, preventing redundant series recalculations.
+   - **Stable Table Identity**: Floating table overlays compare cell counts and IDs before dispatching state updates, preventing React re-render thrashing.
+   - **Polygon Bounding-Box Culling**: Evaluates whole-polygon bounding ranges against viewport logical bounds instead of culling individual vertices, preventing forecast cones and cloud fills from slicing or distorting into dark quadrilateral slabs.
+   - `pineTSRunner` & `pineTSExtractors`: Automatically filters out deleted, uninitialized (`NaN`), collapsed 0-width, or transparent (`color = na`, `#00000000`) lines and boxes, while extracting both base and overlay heaps (`__boxes__` and `__boxes_overlay__`).
    - `ChartLegendHeader`: Displays active input parameters next to indicator titles (e.g. `Liquidity Swings [LuxAlgo] 11 Wick Extremity`), matching TradingView's legend format.
 
 ---

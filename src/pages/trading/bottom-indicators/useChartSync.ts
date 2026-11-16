@@ -94,10 +94,12 @@ export function useChartSync(
     const chart = chartRef.current;
     if (!chart || !mainChart) return;
 
+    let lastWidth = -1;
     const syncWidth = () => {
       try {
         const mainWidth = mainChart.priceScale("right").width();
-        if (mainWidth > 0) {
+        if (mainWidth > 0 && mainWidth !== lastWidth) {
+          lastWidth = mainWidth;
           chart.applyOptions({ rightPriceScale: { minimumWidth: mainWidth } });
         }
       } catch {}

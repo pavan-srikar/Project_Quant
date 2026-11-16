@@ -7,7 +7,8 @@ export interface PinePlot {
   lineWidth: number;
   values: IndicatorPoint[];
   displayNone?: boolean;
-  style?: "columns" | "histogram" | "line" | "area" | "circles" | "cross";
+  style?: "columns" | "histogram" | "line" | "area" | "stepline" | "circles" | "cross";
+  forceOverlay?: boolean;
 }
 
 export interface PineHLine {
@@ -49,6 +50,7 @@ export interface PineBox {
   bgColor?: string;
   borderColor?: string;
   borderWidth?: number;
+  forceOverlay?: boolean;
 }
 
 export interface PineLine {
@@ -60,6 +62,7 @@ export interface PineLine {
   color?: string;
   width?: number;
   style?: "solid" | "dashed" | "dotted";
+  forceOverlay?: boolean;
 }
 
 export interface PineLabel {
@@ -71,6 +74,34 @@ export interface PineLabel {
   style?: "up" | "down" | "center";
   bgColor?: string;
   size?: "tiny" | "small" | "normal" | "large" | "huge" | string;
+  forceOverlay?: boolean;
+}
+
+export interface PineTableCell {
+  text: string;
+  textColor?: string;
+  bgColor?: string;
+  halign?: "left" | "center" | "right";
+  valign?: "top" | "center" | "bottom";
+  size?: "tiny" | "small" | "normal" | "large" | "huge" | string;
+  tooltip?: string;
+  merged?: boolean;
+  colSpan?: number;
+  rowSpan?: number;
+}
+
+export interface PineTable {
+  id: string;
+  position: "top_right" | "top_left" | "bottom_right" | "bottom_left" | "top_center" | "bottom_center" | "middle_right" | "middle_left" | "middle_center" | string;
+  columns: number;
+  rows: number;
+  bgColor?: string;
+  frameColor?: string;
+  frameWidth?: number;
+  borderColor?: string;
+  borderWidth?: number;
+  cells: PineTableCell[][];
+  forceOverlay?: boolean;
 }
 
 export interface PineFill {
@@ -101,5 +132,6 @@ export interface PineEvaluationResult {
   boxes?: PineBox[];
   lines?: PineLine[];
   labels?: PineLabel[];
+  tables?: PineTable[];
   error?: string;
 }

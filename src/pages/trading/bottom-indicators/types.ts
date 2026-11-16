@@ -5,6 +5,7 @@ import type {
   Time,
 } from "lightweight-charts";
 import type { IndicatorType } from "../../../lib/indicators.ts";
+import type { PineLabel, PineBox, PineLine, PineTable } from "../../../lib/pinescript/types.ts";
 
 export interface BottomIndicatorsPanelProps {
   candles: (CandlestickData<Time> | any)[];
@@ -68,9 +69,13 @@ export type IndicatorCalculatedData =
         title: string;
         color: string;
         lineWidth: number;
-        style?: "columns" | "histogram" | "line" | "area" | "circles" | "cross";
+        style?: "columns" | "histogram" | "line" | "area" | "stepline" | "circles" | "cross";
         values: { time: number; value: number }[];
       }[];
       hlines?: { price: number; title: string; color: string }[];
+      labels?: PineLabel[];
+      boxes?: PineBox[];
+      lines?: PineLine[];
+      tables?: PineTable[];
     }
   | null;

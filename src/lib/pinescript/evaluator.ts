@@ -219,7 +219,7 @@ export function evaluatePineScript(
     try {
       let vals = resolve(p.expr);
       if (!Array.isArray(vals) || vals.every((v) => isNaN(v))) {
-        vals = context[p.expr] || context.close;
+        vals = context[p.expr] ?? [];
       }
 
       const isRef = p.title === "Reference Price" || /init_value/i.test(p.expr);

@@ -62,26 +62,26 @@ export function alignLineData(
 
 export function alignHistogramData(
   times: number[],
-  points: { time: number; value: number }[],
+  points: { time: number; value: number; color?: string }[],
 ): (HistogramData<Time> | WhitespaceData<Time>)[] {
   if (times.length === 0) {
     return points.map((p) => ({
       time: p.time as Time,
       value: p.value,
-      color: p.value >= 0 ? "#0ecb81" : "#f6465d",
+      color: p.color || (p.value >= 0 ? "#0ecb81" : "#f6465d"),
     }));
   }
-  const map = new Map<number, number>();
+  const map = new Map<number, { value: number; color?: string }>();
   for (const p of points) {
-    map.set(p.time, p.value);
+    map.set(p.time, { value: p.value, color: p.color });
   }
   return times.map((t) => {
-    const v = map.get(t);
-    if (v !== undefined) {
+    const item = map.get(t);
+    if (item !== undefined) {
       return {
         time: t as Time,
-        value: v,
-        color: v >= 0 ? "#0ecb81" : "#f6465d",
+        value: item.value,
+        color: item.color || (item.value >= 0 ? "#0ecb81" : "#f6465d"),
       };
     }
     return { time: t as Time };

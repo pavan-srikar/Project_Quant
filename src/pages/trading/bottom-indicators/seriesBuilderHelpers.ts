@@ -1,4 +1,4 @@
-import { LineStyle, type IChartApi, type ISeriesApi } from "lightweight-charts";
+import { LineStyle, LineType, type IChartApi, type ISeriesApi } from "lightweight-charts";
 import { alignHistogramData, alignLineData } from "./indicatorDataAlignment.ts";
 import type { IndicatorSettings } from "../../../hooks/useIndicatorSettings.ts";
 
@@ -40,7 +40,7 @@ export function buildCustomPlots(
     title: string;
     color: string;
     lineWidth: number;
-    style?: "columns" | "histogram" | "line" | "area" | "circles" | "cross";
+    style?: "columns" | "histogram" | "line" | "area" | "stepline" | "circles" | "cross";
     values: { time: number; value: number }[];
   }[],
   hlines: { price: number; title: string; color: string }[] | undefined,
@@ -51,21 +51,41 @@ export function buildCustomPlots(
 
   plots.forEach((plt, idx) => {
     const isHist = plt.style === "histogram" || plt.style === "columns";
-    const s = isHist
-      ? chart.addHistogramSeries({
-          priceLineVisible: false,
-          lastValueVisible: false,
-          priceFormat: { type: "custom", minMove: 0.01, formatter: (p: number) => p.toFixed(2) },
-        })
-      : chart.addLineSeries({
-          color: plt.color || currentSettings.color || "#2962ff",
-          lineWidth: (plt.lineWidth as any) || 1.5,
-          priceLineVisible: false,
-          lastValueVisible: true,
-          priceFormat: { type: "custom", minMove: 0.01, formatter: (p: number) => p.toFixed(2) },
-        });
+    const isArea = plt.style === "area";
+    const isStep = plt.style === "stepline";
 
-    s.setData(isHist ? alignHistogramData(candleTimes, plt.values) : alignLineData(candleTimes, plt.values));
+    let s: ISeriesApi<any>;
+    if (isHist) {
+      s = chart.addHistogramSeries({
+        priceLineVisible: false,
+        lastValueVisible: false,
+        priceFormat: { type: "custom", minMove: 0.01, formatter: (p: number) => p.toFixed(2) },
+      });
+      s.setData(alignHistogramData(candleTimes, plt.values));
+    } else if (isArea) {
+      const topCol = plt.color ? (plt.color.length === 7 ? plt.color + "33" : plt.color) : "rgba(41, 98, 255, 0.2)";
+      s = chart.addAreaSeries({
+        topColor: topCol,
+        bottomColor: "rgba(0, 0, 0, 0)",
+        lineColor: plt.color || currentSettings.color || "#2962ff",
+        lineWidth: (plt.lineWidth as any) || 1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        priceFormat: { type: "custom", minMove: 0.01, formatter: (p: number) => p.toFixed(2) },
+      });
+      s.setData(alignLineData(candleTimes, plt.values));
+    } else {
+      s = chart.addLineSeries({
+        color: plt.color || currentSettings.color || "#2962ff",
+        lineWidth: (plt.lineWidth as any) || 1.5,
+        lineType: isStep ? LineType.WithSteps : LineType.Simple,
+        priceLineVisible: false,
+        lastValueVisible: true,
+        priceFormat: { type: "custom", minMove: 0.01, formatter: (p: number) => p.toFixed(2) },
+      });
+      s.setData(alignLineData(candleTimes, plt.values));
+    }
+
     allSeries.push(s);
     if (idx === 0) mainSeries = s;
   });

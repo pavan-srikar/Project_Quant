@@ -1,6 +1,7 @@
 import type { CanvasRenderingTarget2D } from "fancy-canvas";
 import type {
   AutoscaleInfo,
+  Coordinate,
   ISeriesPrimitive,
   ISeriesPrimitivePaneRenderer,
   ISeriesPrimitivePaneView,
@@ -79,23 +80,39 @@ class PineFgRenderer implements ISeriesPrimitivePaneRenderer {
         for (const lbl of this._labels) {
           const sz = lbl.size === "tiny" ? 9 : lbl.size === "small" ? 10 : lbl.size === "large" ? 13 : lbl.size === "huge" ? 16 : 11;
           ctx.font = `600 ${sz}px -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, sans-serif`;
+          const textLines = String(lbl.text || "").split("\n");
+          const lh = sz + 3;
+          let maxW = 0;
+          for (const tl of textLines) {
+            const w = ctx.measureText(tl).width;
+            if (w > maxW) maxW = w;
+          }
+          const pw = Math.max(16, maxW + 8), ph = textLines.length * lh + 4;
           const yOff = lbl.style === "down" ? -6 : lbl.style === "up" ? 6 : 0;
           const y = lbl.y + yOff;
+          const px = lbl.x - pw / 2, py = lbl.style === "down" ? y - ph + 2 : lbl.style === "up" ? y - 2 : y - ph / 2;
+
           if (lbl.bgColor) {
-            const tm = ctx.measureText(lbl.text);
-            const pw = Math.max(16, tm.width + 8), ph = sz + 6;
-            const px = lbl.x - pw / 2, py = lbl.style === "down" ? y - ph + 2 : lbl.style === "up" ? y - 2 : y - ph / 2;
             ctx.fillStyle = lbl.bgColor;
             ctx.beginPath();
             if (ctx.roundRect) ctx.roundRect(px, py, pw, ph, 3); else ctx.fillRect(px, py, pw, ph);
             ctx.fill();
+            if (lbl.style === "down") {
+              ctx.beginPath(); ctx.moveTo(lbl.x - 4, py + ph); ctx.lineTo(lbl.x + 4, py + ph); ctx.lineTo(lbl.x, py + ph + 4); ctx.fill();
+            } else if (lbl.style === "up") {
+              ctx.beginPath(); ctx.moveTo(lbl.x - 4, py); ctx.lineTo(lbl.x + 4, py); ctx.lineTo(lbl.x, py - 4); ctx.fill();
+            }
             ctx.textBaseline = "middle";
             ctx.fillStyle = lbl.color || "#ffffff";
-            ctx.fillText(lbl.text, lbl.x, py + ph / 2);
+            for (let li = 0; li < textLines.length; li++) {
+              ctx.fillText(textLines[li]!, lbl.x, py + 2 + li * lh + lh / 2);
+            }
           } else {
-            ctx.textBaseline = lbl.style === "down" ? "bottom" : lbl.style === "up" ? "top" : "middle";
+            ctx.textBaseline = "middle";
             ctx.fillStyle = lbl.color || "#b2b5be";
-            ctx.fillText(lbl.text, lbl.x, y);
+            for (let li = 0; li < textLines.length; li++) {
+              ctx.fillText(textLines[li]!, lbl.x, py + 2 + li * lh + lh / 2);
+            }
           }
         }
       }
@@ -116,22 +133,35 @@ class PineRendererBgPaneView implements ISeriesPrimitivePaneView {
       const chart = this._source.chart, series = this._source.series;
       if (!chart || !series) return;
       const ts = chart.timeScale();
+      const lr = ts.getVisibleLogicalRange();
+      const minBar = lr ? Math.floor(lr.from) - 5 : -Infinity;
+      const maxBar = lr ? Math.ceil(lr.to) + 5 : Infinity;
+
       const c0 = ts.logicalToCoordinate(0 as Logical), c1 = ts.logicalToCoordinate(1 as Logical);
       const halfBar = Math.max(2, (c0 !== null && c1 !== null ? Math.abs(c1 - c0) : 6) * 0.45);
 
       for (const b of this._source.boxes) {
-        const lx1 = ts.logicalToCoordinate(b.left as Logical), lx2 = ts.logicalToCoordinate(b.right as Logical);
+        const minB = Math.min(b.left, b.right), maxB = Math.max(b.left, b.right);
+        if (maxB < minBar || minB > maxBar) continue;
+        let lx1 = ts.logicalToCoordinate(b.left as Logical), lx2 = ts.logicalToCoordinate(b.right as Logical);
+        if (lx1 === null && lx2 !== null) lx1 = (lx2 - (b.right - b.left) * (halfBar * 2)) as Coordinate;
+        if (lx2 === null && lx1 !== null) lx2 = (lx1 + (b.right - b.left) * (halfBar * 2)) as Coordinate;
         const y1 = series.priceToCoordinate(b.top), y2 = series.priceToCoordinate(b.bottom);
         if (lx1 !== null && lx2 !== null && y1 !== null && y2 !== null) {
-          this._boxes.push({ x1: Math.min(lx1, lx2) - halfBar, y1, x2: Math.max(lx1, lx2) + halfBar, y2, bgColor: b.bgColor, borderColor: b.borderColor, borderWidth: b.borderWidth });
+          const pad = b.id.startsWith("cdl_") ? halfBar * 0.7 : halfBar;
+          this._boxes.push({ x1: Math.min(lx1, lx2) - pad, y1, x2: Math.max(lx1, lx2) + pad, y2, bgColor: b.bgColor, borderColor: b.borderColor, borderWidth: b.borderWidth });
         }
       }
       for (const fill of this._source.fills) {
         if (!fill.points?.length) continue;
         let band: RenderableFillBand | null = null;
         for (const pt of fill.points) {
-          const x = ts.timeToCoordinate(pt.time as Time), yTop = series.priceToCoordinate(pt.top), yBottom = series.priceToCoordinate(pt.bottom);
-          if (x === null || yTop === null || yBottom === null) continue;
+          const ptIdx = (pt as any).index;
+          if (ptIdx !== undefined && (ptIdx < minBar - 5 || ptIdx > maxBar + 5)) continue;
+          const x = ts.timeToCoordinate(pt.time as Time);
+          if (x === null) continue;
+          const yTop = series.priceToCoordinate(pt.top), yBottom = series.priceToCoordinate(pt.bottom);
+          if (yTop === null || yBottom === null) continue;
           const col = pt.color || fill.topColor || "rgba(8, 153, 129, 0.25)";
           if (!band || band.color !== col) {
             if (band && band.topPoints.length >= 2) this._bands.push(band);
@@ -142,18 +172,24 @@ class PineRendererBgPaneView implements ISeriesPrimitivePaneView {
         if (band && band.topPoints.length >= 2) this._bands.push(band);
       }
       for (const poly of this._source.polylines) {
-        if (!poly.fillColor) continue;
+        if (!poly.fillColor || poly.points.length < 3) continue;
+        let minIdx = Infinity, maxIdx = -Infinity;
+        for (const pt of poly.points) {
+          if (pt.index < minIdx) minIdx = pt.index;
+          if (pt.index > maxIdx) maxIdx = pt.index;
+        }
+        if (maxIdx < minBar - 50 || minIdx > maxBar + 50) continue;
         const pts: CanvasPoint[] = [];
         for (const pt of poly.points) {
           const x = ts.logicalToCoordinate(pt.index as Logical), y = series.priceToCoordinate(pt.price);
           if (x !== null && y !== null && !isNaN(x) && !isNaN(y)) pts.push({ x, y });
         }
-        if (pts.length >= 2) this._polylines.push({ points: pts, fillColor: poly.fillColor });
+        if (pts.length >= 3) this._polylines.push({ points: pts, fillColor: poly.fillColor });
       }
     } catch {}
   }
 
-  renderer() { this.update(); return new PineBgRenderer(this._boxes, this._bands, this._polylines); }
+  renderer() { return new PineBgRenderer(this._boxes, this._bands, this._polylines); }
   zOrder(): SeriesPrimitivePaneViewZOrder { return "bottom"; }
 }
 
@@ -170,16 +206,29 @@ class PineRendererFgPaneView implements ISeriesPrimitivePaneView {
       const chart = this._source.chart, series = this._source.series;
       if (!chart || !series) return;
       const ts = chart.timeScale();
+      const lr = ts.getVisibleLogicalRange();
+      const minBar = lr ? Math.floor(lr.from) - 5 : -Infinity;
+      const maxBar = lr ? Math.ceil(lr.to) + 5 : Infinity;
 
       for (const l of this._source.lines) {
-        const x1 = ts.logicalToCoordinate(l.x1 as Logical), x2 = ts.logicalToCoordinate(l.x2 as Logical);
+        const minX = Math.min(l.x1, l.x2), maxX = Math.max(l.x1, l.x2);
+        if (maxX < minBar || minX > maxBar) continue;
+        let x1 = ts.logicalToCoordinate(l.x1 as Logical), x2 = ts.logicalToCoordinate(l.x2 as Logical);
+        if (x1 === null && x2 !== null) x1 = (x2 - (l.x2 - l.x1) * 8) as Coordinate;
+        if (x2 === null && x1 !== null) x2 = (x1 + (l.x2 - l.x1) * 8) as Coordinate;
         const y1 = series.priceToCoordinate(l.y1), y2 = series.priceToCoordinate(l.y2);
         if (x1 !== null && x2 !== null && y1 !== null && y2 !== null) {
           this._lines.push({ x1, y1, x2, y2, color: l.color, width: l.width, style: l.style });
         }
       }
       for (const poly of this._source.polylines) {
-        if (!poly.lineColor) continue;
+        if (!poly.lineColor || poly.points.length < 2) continue;
+        let minIdx = Infinity, maxIdx = -Infinity;
+        for (const pt of poly.points) {
+          if (pt.index < minIdx) minIdx = pt.index;
+          if (pt.index > maxIdx) maxIdx = pt.index;
+        }
+        if (maxIdx < minBar - 50 || minIdx > maxBar + 50) continue;
         const pts: CanvasPoint[] = [];
         for (const pt of poly.points) {
           const x = ts.logicalToCoordinate(pt.index as Logical), y = series.priceToCoordinate(pt.price);
@@ -188,6 +237,7 @@ class PineRendererFgPaneView implements ISeriesPrimitivePaneView {
         if (pts.length >= 2) this._polylines.push({ points: pts, lineColor: poly.lineColor, lineWidth: poly.lineWidth });
       }
       for (const lbl of this._source.labels) {
+        if (lbl.x < minBar || lbl.x > maxBar) continue;
         const x = ts.logicalToCoordinate(lbl.x as Logical), y = series.priceToCoordinate(lbl.y);
         if (x !== null && y !== null && !isNaN(x) && !isNaN(y)) {
           this._labels.push({ x, y, text: lbl.text, color: lbl.color, bgColor: lbl.bgColor, style: lbl.style, size: lbl.size });
@@ -196,7 +246,7 @@ class PineRendererFgPaneView implements ISeriesPrimitivePaneView {
     } catch {}
   }
 
-  renderer() { this.update(); return new PineFgRenderer(this._lines, this._polylines, this._labels); }
+  renderer() { return new PineFgRenderer(this._lines, this._polylines, this._labels); }
   zOrder(): SeriesPrimitivePaneViewZOrder { return "normal"; }
 }
 
@@ -214,6 +264,7 @@ export class PineRendererPrimitive extends PluginBase implements ISeriesPrimitiv
   }
 
   public updateData(polylines: PinePolyline[] = [], fills: PineFill[] = [], boxes: PineBox[] = [], lines: PineLine[] = [], labels: PineLabel[] = []) {
+    if (this.polylines === polylines && this.fills === fills && this.boxes === boxes && this.lines === lines && this.labels === labels) return;
     this.polylines = polylines; this.fills = fills; this.boxes = boxes; this.lines = lines; this.labels = labels;
     this.updateAllViews();
     this.requestUpdate();
@@ -222,19 +273,8 @@ export class PineRendererPrimitive extends PluginBase implements ISeriesPrimitiv
   public updateAllViews() { this._paneViews.forEach((pw) => pw.update()); }
   public paneViews() { return this._paneViews; }
 
-  public autoscaleInfo(startTimePoint: Logical, endTimePoint: Logical): AutoscaleInfo | null {
-    if (!this.polylines?.length) return null;
-    let minPrice = Infinity, maxPrice = -Infinity;
-    for (const poly of this.polylines) {
-      for (const pt of poly.points) {
-        if (pt.index >= startTimePoint && pt.index <= endTimePoint) {
-          if (pt.price < minPrice) minPrice = pt.price;
-          if (pt.price > maxPrice) maxPrice = pt.price;
-        }
-      }
-    }
-    if (minPrice === Infinity || maxPrice === -Infinity) return null;
-    return { priceRange: { minValue: minPrice, maxValue: maxPrice } };
+  public autoscaleInfo(_startTimePoint: Logical, _endTimePoint: Logical): AutoscaleInfo | null {
+    return null;
   }
 
   public attached(p: SeriesAttachedParameter<Time>): void {
@@ -244,6 +284,5 @@ export class PineRendererPrimitive extends PluginBase implements ISeriesPrimitiv
 
   protected dataUpdated(): void {
     this.updateAllViews();
-    this.requestUpdate();
   }
 }

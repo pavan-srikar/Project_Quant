@@ -31,11 +31,12 @@ function checkPivot(candles: CandleData[], n: number, len: number, isHigh: boole
 }
 
 function formatVolume(vol: number, count?: number): string {
-  if (!vol || isNaN(vol)) return count && count > 0 ? `${count}` : "";
   if (vol >= 1_000_000_000) return (vol / 1_000_000_000).toFixed(3).replace(/\.?0+$/, "") + "B";
   if (vol >= 1_000_000) return (vol / 1_000_000).toFixed(3).replace(/\.?0+$/, "") + "M";
   if (vol >= 1_000) return (vol / 1_000).toFixed(3).replace(/\.?0+$/, "") + "K";
-  return vol.toFixed(0);
+  if (vol >= 1) return vol.toFixed(0);
+  if (vol > 0) return vol.toFixed(2);
+  return count && count > 0 ? `${count}` : "";
 }
 
 export function computeLiquiditySwings(

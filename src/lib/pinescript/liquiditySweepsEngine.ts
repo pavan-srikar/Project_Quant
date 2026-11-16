@@ -62,10 +62,10 @@ export function computeLiquiditySweeps(
   const colBr = params.colBr || "#f23645";
   const colBl2 = params.colBl2 || "rgba(8, 153, 129, 0.5)";
   const colBr2 = params.colBr2 || "rgba(242, 54, 69, 0.5)";
-  const colBl3 = params.colBl3 || "rgba(8, 153, 129, 0.12)";
-  const colBr3 = params.colBr3 || "rgba(242, 54, 69, 0.12)";
+  const colBl3 = params.colBl3 || "rgba(8, 153, 129, 0.08)";
+  const colBr3 = params.colBr3 || "rgba(242, 54, 69, 0.08)";
   const extend = params.extend !== false;
-  const maxB = Math.min(50, Math.max(1, params.maxB ?? 50));
+  const maxB = Math.min(20, Math.max(1, params.maxB ?? 20));
 
   const oW = opt === "Only Wicks";
   const oO = opt === "Only Outbreaks & Retest";

@@ -87,6 +87,20 @@ function getIndicatorValues(
       return v != null ? [{ label: "", value: v.toFixed(2), color: "#2962ff" }] : [];
     }
     case "CUSTOM": {
+      if (indicatorData.plots && indicatorData.plots.length > 0) {
+        const res: { label: string; value: string; color?: string }[] = [];
+        for (const plt of indicatorData.plots.slice(0, 4)) {
+          const v = findVal(plt.values);
+          if (v != null) {
+            res.push({
+              label: plt.title,
+              value: v.toFixed(2),
+              color: plt.color,
+            });
+          }
+        }
+        if (res.length > 0) return res;
+      }
       const v = findVal(indicatorData.data);
       return v != null ? [{ label: "", value: v.toFixed(2), color: "#2962ff" }] : [];
     }

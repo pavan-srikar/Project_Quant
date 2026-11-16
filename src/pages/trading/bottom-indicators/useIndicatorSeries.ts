@@ -2,6 +2,7 @@ import type { IChartApi, ISeriesApi } from "lightweight-charts";
 import { useEffect, useMemo, useRef } from "react";
 import type { IndicatorSettings } from "../../../hooks/useIndicatorSettings.ts";
 import type { IndicatorType } from "../../../lib/indicators.ts";
+import { PineRendererPrimitive } from "../../../lib/chart-plugins/pine-primitive";
 import { buildIndicatorSeries } from "./seriesBuilders.ts";
 import { updateSeriesData } from "./seriesUpdate.ts";
 import type { IndicatorCalculatedData, SeriesState } from "./types.ts";
@@ -18,6 +19,7 @@ export function useIndicatorSeries(
 ) {
   const seriesStateRef = useRef<SeriesState | null>(null);
   const mainSeriesRef = useRef<ISeriesApi<any> | null>(null);
+  const primitiveRef = useRef<PineRendererPrimitive | null>(null);
 
   // Compute a settings key for visual configuration of the selected indicator
   const currentSettingsKey = useMemo(() => {
@@ -38,6 +40,12 @@ export function useIndicatorSeries(
     if (!chart) return;
 
     if (activeBelow.length === 0 || !indicatorData) {
+      if (primitiveRef.current) {
+        try {
+          mainSeriesRef.current?.detachPrimitive(primitiveRef.current);
+        } catch {}
+        primitiveRef.current = null;
+      }
       if (seriesStateRef.current) {
         if (seriesStateRef.current.chart === chart) {
           for (const s of seriesStateRef.current.allSeries) {
@@ -72,15 +80,37 @@ export function useIndicatorSeries(
       }
     };
 
+    const paneLabels = (indicatorData.type === "CUSTOM" && indicatorData.labels)
+      ? indicatorData.labels.filter((l) => !l.forceOverlay)
+      : [];
+
     if (isSameSeries) {
       // Just update data on existing series (smooth, 0ms, zero lag!)
       updateSeriesData(state, indicatorData, candleTimes, currentSettings);
+      if (paneLabels.length > 0) {
+        if (!primitiveRef.current) {
+          primitiveRef.current = new PineRendererPrimitive();
+          state.mainSeries.attachPrimitive(primitiveRef.current);
+        }
+        primitiveRef.current.updateData([], [], [], [], paneLabels);
+      } else if (primitiveRef.current) {
+        try {
+          state.mainSeries.detachPrimitive(primitiveRef.current);
+        } catch {}
+        primitiveRef.current = null;
+      }
       syncLogicalRange();
       const raf = requestAnimationFrame(syncLogicalRange);
       return () => cancelAnimationFrame(raf);
     }
 
     // Indicator type, style settings, or chart instance changed: rebuild series
+    if (primitiveRef.current) {
+      try {
+        mainSeriesRef.current?.detachPrimitive(primitiveRef.current);
+      } catch {}
+      primitiveRef.current = null;
+    }
     if (state) {
       if (state.chart === chart) {
         for (const s of state.allSeries) {
@@ -99,6 +129,12 @@ export function useIndicatorSeries(
       candleTimes,
       currentSettings,
     );
+
+    if (paneLabels.length > 0) {
+      primitiveRef.current = new PineRendererPrimitive();
+      mainSeries.attachPrimitive(primitiveRef.current);
+      primitiveRef.current.updateData([], [], [], [], paneLabels);
+    }
 
     mainSeriesRef.current = mainSeries;
     seriesStateRef.current = {

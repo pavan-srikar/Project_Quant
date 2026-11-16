@@ -7,4 +7,6 @@ export * from "./mathFunctions";
 export * from "./indicatorTemplates";
 export * from "./pineRuntime";
 export * from "./pineVM";
+export * from "./pineMigrator";
 export * from "./pineTSRunner";
+export * from "./pineTSExtractors";

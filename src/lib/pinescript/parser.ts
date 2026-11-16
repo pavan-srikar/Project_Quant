@@ -1,5 +1,6 @@
 import type { PineHLine, PineInputDef } from "./types";
 import { foldLines, parsePineColor, splitArgs } from "./parserHelpers";
+import { migratePineSource } from "./pineMigrator";
 
 export interface ParsedPinePlot {
   expr: string;
@@ -43,6 +44,7 @@ export interface ParsedPineScript {
 }
 
 export function parsePineScript(code: string): ParsedPineScript {
+  const migrated = migratePineSource(code);
   const result: ParsedPineScript = {
     title: "Custom Indicator",
     overlay: true,
@@ -56,21 +58,25 @@ export function parsePineScript(code: string): ParsedPineScript {
     isLiquiditySweeps: false,
     isLiquiditySwings: false,
     errors: [],
-    rawCode: code,
+    rawCode: migrated,
   };
 
-  if (/liquidity\s+sweeps/i.test(code)) {
+  if (/liquidity\s+sweeps/i.test(migrated)) {
     result.isLiquiditySweeps = true;
     result.hasBoxesOrLines = true;
   }
-  if (/liquidity\s+swings/i.test(code)) {
+  if (/liquidity\s+swings/i.test(migrated)) {
     result.isLiquiditySwings = true;
     result.hasBoxesOrLines = true;
   }
 
-  const lines = foldLines(code);
+  const lines = foldLines(migrated);
+  const stringMap = new Map<string, string>();
 
   for (const line of lines) {
+    const sm = line.match(/^(?:(?:const\s+)?(?:string\s+)?([a-zA-Z_]\w*)\s*=\s*["']([^"']+)["'])/i);
+    if (sm && sm[1] && sm[2]) stringMap.set(sm[1], sm[2]);
+
     if (/polyline\.new|method\s+forecast/i.test(line)) {
       result.hasForecastPolyline = true;
     }
@@ -95,7 +101,7 @@ export function parsePineScript(code: string): ParsedPineScript {
 
     // 2. Inputs: varName = input[.(int|float|bool|string|color|timeframe|...)]
     const inp = line.match(
-      /^(?:(?:var|varip)\s+)?([a-zA-Z_]\w*)\s*=\s*input(?:\.([a-zA-Z_]\w*))?\s*\(([\s\S]*)\)$/i,
+      /^(?:(?:var|varip)\s+)?(?:(?:bool|int|float|string|color)\s+)?([a-zA-Z_]\w*)\s*=\s*input(?:\.([a-zA-Z_]\w*))?\s*\(([\s\S]*)\)$/i,
     );
     if (inp && inp[1] && inp[3] !== undefined) {
       const varName = inp[1];
@@ -112,11 +118,11 @@ export function parsePineScript(code: string): ParsedPineScript {
 
       for (let i = 1; i < args.length; i++) {
         const a = args[i]!;
-        const gMatch = a.match(/group\s*=\s*["']([^"']+)["']/i);
-        if (gMatch && gMatch[1]) group = gMatch[1];
+        const gMatch = a.match(/group\s*=\s*(?:["']([^"']+)["']|([a-zA-Z_]\w*))/i);
+        if (gMatch) group = gMatch[1] || stringMap.get(gMatch[2]!) || gMatch[2];
 
-        const inlMatch = a.match(/inline\s*=\s*["']([^"']+)["']/i);
-        if (inlMatch && inlMatch[1]) inline = inlMatch[1];
+        const inlMatch = a.match(/inline\s*=\s*(?:["']([^"']+)["']|([a-zA-Z_]\w*))/i);
+        if (inlMatch) inline = inlMatch[1] || stringMap.get(inlMatch[2]!) || inlMatch[2];
 
         const minMatch = a.match(/(?:minval|min)\s*=\s*([0-9.-]+)/i);
         if (minMatch && minMatch[1]) min = parseFloat(minMatch[1]);

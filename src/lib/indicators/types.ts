@@ -10,6 +10,7 @@ export interface CandleData {
 export interface IndicatorPoint {
   time: number;
   value: number;
+  color?: string;
 }
 
 export interface MACDResult {

@@ -1,5 +1,5 @@
 import type { CandlestickData, Time } from "lightweight-charts";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { IndicatorSettings } from "../../../hooks/useIndicatorSettings.ts";
 import {
   atr,
@@ -13,7 +13,7 @@ import {
 import {
   getCustomPineIndicators,
   parsePineScript,
-  evaluatePineScript,
+  evaluatePineScriptAsync,
 } from "../../../lib/pinescript";
 import { toIndicatorCandles } from "../utils.ts";
 import type { IndicatorCalculatedData } from "./types.ts";
@@ -24,10 +24,100 @@ export function useIndicatorCalculation(
   currentSettings: IndicatorSettings,
 ) {
   const indCandles = useMemo(() => toIndicatorCandles(candles), [candles]);
-  const candleTimes = useMemo(
-    () => indCandles.map((c) => c.time),
-    [indCandles],
-  );
+  const candleTimes = useMemo(() => indCandles.map((c) => c.time), [indCandles]);
+  const [asyncPineData, setAsyncPineData] = useState<IndicatorCalculatedData>(null);
+  const lastComputedKeyRef = useRef<string>("");
+
+  useEffect(() => {
+    if (!selectedType.startsWith("pine_") || indCandles.length === 0) {
+      setAsyncPineData(null);
+      lastComputedKeyRef.current = "";
+      return;
+    }
+    const custom = getCustomPineIndicators().find((c) => c.id === selectedType);
+    if (!custom) {
+      setAsyncPineData(null);
+      lastComputedKeyRef.current = "";
+      return;
+    }
+
+    const mergedInputs = {
+      ...(custom.inputs || {}),
+      ...(currentSettings.pineInputs || {}),
+    };
+    const compKey = `${selectedType}_${custom.code.length}_${JSON.stringify(mergedInputs)}_${indCandles.length}_${indCandles[indCandles.length - 1]?.time ?? 0}`;
+    if (lastComputedKeyRef.current === compKey && asyncPineData) {
+      return;
+    }
+
+    let cancelled = false;
+    const compute = async () => {
+      try {
+        const parsed = parsePineScript(custom.code);
+        const evalRes = await evaluatePineScriptAsync(indCandles, parsed, mergedInputs, custom.code);
+        if (cancelled) return;
+        lastComputedKeyRef.current = compKey;
+
+        const visiblePlots = evalRes.plots.filter(
+          (p) =>
+            !p.displayNone &&
+            !p.forceOverlay &&
+            (currentSettings.plotVisibility?.[p.id] ??
+              currentSettings.plotVisibility?.[p.title] ??
+              true),
+        );
+        const firstPlot = visiblePlots[0] ?? evalRes.plots[0];
+        const pts = firstPlot ? firstPlot.values : [];
+        const plots = visiblePlots.map((p) => ({
+          id: p.id,
+          title: p.title,
+          color:
+            currentSettings.plotColors?.[p.id] ??
+            currentSettings.plotColors?.[p.title] ??
+            p.color,
+          lineWidth:
+            currentSettings.plotLineWidths?.[p.id] ??
+            currentSettings.plotLineWidths?.[p.title] ??
+            p.lineWidth,
+          style: (currentSettings.plotStyles?.[p.id] as any) || p.style,
+          values: p.values,
+        }));
+        const hlines = evalRes.hlines.map((h) => ({
+          price: h.price,
+          title: h.title,
+          color: h.color,
+        }));
+
+        setAsyncPineData({
+          type: "CUSTOM",
+          name: custom.name,
+          data: pts,
+          plots: plots.length > 0 ? plots : undefined,
+          hlines: hlines.length > 0 ? hlines : undefined,
+          labels: evalRes.labels,
+          boxes: evalRes.boxes,
+          lines: evalRes.lines,
+          tables: evalRes.tables,
+        });
+      } catch (err) {
+        console.warn("[useIndicatorCalculation] Pine async evaluation error:", err);
+      }
+    };
+
+    compute();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    selectedType,
+    indCandles.length,
+    indCandles[indCandles.length - 1]?.time,
+    currentSettings.pineInputs,
+    currentSettings.plotVisibility,
+    currentSettings.plotColors,
+    currentSettings.plotLineWidths,
+    currentSettings.plotStyles,
+  ]);
 
   const indicatorData = useMemo<IndicatorCalculatedData>(() => {
     if (indCandles.length === 0) return null;
@@ -68,58 +158,15 @@ export function useIndicatorCalculation(
       }
       default: {
         if (selectedType.startsWith("pine_")) {
-          const custom = getCustomPineIndicators().find((c) => c.id === selectedType);
-          if (custom) {
-            const parsed = parsePineScript(custom.code);
-            const mergedInputs = {
-              ...(custom.inputs || {}),
-              ...(currentSettings.pineInputs || {}),
-            };
-            const evalRes = evaluatePineScript(indCandles, parsed, mergedInputs);
-            const visiblePlots = evalRes.plots.filter(
-              (p) =>
-                !p.displayNone &&
-                (currentSettings.plotVisibility?.[p.id] ??
-                  currentSettings.plotVisibility?.[p.title] ??
-                  true),
-            );
-            const firstPlot = visiblePlots[0] ?? evalRes.plots[0];
-            const pts = firstPlot ? firstPlot.values : [];
-            const plots = visiblePlots.map((p) => ({
-              id: p.id,
-              title: p.title,
-              color:
-                currentSettings.plotColors?.[p.id] ??
-                currentSettings.plotColors?.[p.title] ??
-                p.color,
-              lineWidth:
-                currentSettings.plotLineWidths?.[p.id] ??
-                currentSettings.plotLineWidths?.[p.title] ??
-                p.lineWidth,
-              style: (currentSettings.plotStyles?.[p.id] as any) || p.style,
-              values: p.values,
-            }));
-            const hlines = evalRes.hlines.map((h) => ({
-              price: h.price,
-              title: h.title,
-              color: h.color,
-            }));
-            return {
-              type: "CUSTOM",
-              name: custom.name,
-              data: pts,
-              plots: plots.length > 0 ? plots : undefined,
-              hlines: hlines.length > 0 ? hlines : undefined,
-            };
-          }
+          return asyncPineData;
         }
-
         return null;
       }
     }
   }, [
     indCandles,
     selectedType,
+    asyncPineData,
     currentSettings.period,
     currentSettings.fast,
     currentSettings.slow,
