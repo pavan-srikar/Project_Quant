@@ -4,7 +4,8 @@ import {
   type ISeriesApi,
 } from "lightweight-charts";
 import type { IndicatorSettings } from "../../../hooks/useIndicatorSettings.ts";
-import { alignHistogramData, alignLineData } from "./indicatorDataAlignment.ts";
+import { alignLineData } from "./indicatorDataAlignment.ts";
+import { buildCustomPlots, formatMacdHistogramData } from "./seriesBuilderHelpers.ts";
 import type { IndicatorCalculatedData, SeriesState } from "./types.ts";
 
 export interface BuildSeriesResult {
@@ -50,6 +51,14 @@ export function buildIndicatorSeries(
       title: "",
     });
     rsiSeries.createPriceLine({
+      price: 50,
+      color: "rgba(120, 123, 134, 0.2)",
+      lineWidth: 1,
+      lineStyle: LineStyle.Dotted,
+      axisLabelVisible: false,
+      title: "",
+    });
+    rsiSeries.createPriceLine({
       price: oversold,
       color: "rgba(120, 123, 134, 0.35)",
       lineWidth: 1,
@@ -71,19 +80,16 @@ export function buildIndicatorSeries(
       },
     });
     histSeries.setData(
-      alignHistogramData(
-        candleTimes,
-        indicatorData.data.histogram.map((h) => ({
-          time: h.time,
-          value: h.value,
-        })),
-      ).map((item) => {
-        if ("value" in item && item.value !== undefined) {
-          return { ...item, color: item.value >= 0 ? histUp : histDown };
-        }
-        return item;
-      }),
+      formatMacdHistogramData(candleTimes, indicatorData.data.histogram, histUp, histDown),
     );
+    histSeries.createPriceLine({
+      price: 0,
+      color: "rgba(120, 123, 134, 0.3)",
+      lineWidth: 1,
+      lineStyle: LineStyle.Solid,
+      axisLabelVisible: false,
+      title: "",
+    });
     allSeries.push(histSeries);
     extraSeries.hist = histSeries;
 
@@ -221,20 +227,32 @@ export function buildIndicatorSeries(
       title: "",
     });
   } else if (indicatorData.type === "CUSTOM") {
-    const customSeries = chart.addLineSeries({
-      color: currentSettings.color || "#2962ff",
-      lineWidth: (currentSettings.lineWidth as any) ?? 1.5,
-      priceLineVisible: false,
-      lastValueVisible: true,
-      priceFormat: {
-        type: "custom",
-        minMove: 0.01,
-        formatter: (p: number) => p.toFixed(2),
-      },
-    });
-    customSeries.setData(alignLineData(candleTimes, indicatorData.data));
-    mainSeries = customSeries;
-    allSeries.push(customSeries);
+    if (indicatorData.plots && indicatorData.plots.length > 0) {
+      const customRes = buildCustomPlots(
+        chart,
+        candleTimes,
+        indicatorData.plots,
+        indicatorData.hlines,
+        currentSettings,
+      );
+      mainSeries = customRes.mainSeries;
+      allSeries.push(...customRes.allSeries);
+    } else {
+      const customSeries = chart.addLineSeries({
+        color: currentSettings.color || "#2962ff",
+        lineWidth: (currentSettings.lineWidth as any) ?? 1.5,
+        priceLineVisible: false,
+        lastValueVisible: true,
+        priceFormat: {
+          type: "custom",
+          minMove: 0.01,
+          formatter: (p: number) => p.toFixed(2),
+        },
+      });
+      customSeries.setData(alignLineData(candleTimes, indicatorData.data));
+      mainSeries = customSeries;
+      allSeries.push(customSeries);
+    }
   } else {
     // WR
     const wrSeries = chart.addLineSeries({

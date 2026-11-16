@@ -57,9 +57,10 @@ Project Quant is a high-performance in-browser quantitative trading terminal bui
 ├────────────────────────────────────────────────────────────────────────┤
 │ Calculation & Execution Layer                                          │
 │  ├── src/lib/indicators ── Pure math: SMA, EMA, RSI, MACD, BOLL, ATR   │
-│  ├── src/lib/pinescript ── AST parser, evaluator & custom indicator VM │
-│  ├── src/lib/chart-plugins ─ Drawing tools, footprint, heatmap, bands  │
+│  ├── src/lib/pinescript ── Parser, evaluator VM, forecast engine & {/} templates │
+│  ├── src/lib/chart-plugins ─ Drawing tools, footprint, heatmap, pine primitive │
 │  ├── src/services/demo/engine ─ In-memory matching engine, margin/PnL  │
+
 │  └── src/services/market-data ─ CandleRepository, Binance REST client  │
 └────────────────────────────────────────────────────────────────────────┘
 ```

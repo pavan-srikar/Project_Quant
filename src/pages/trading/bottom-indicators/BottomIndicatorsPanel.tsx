@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { IndicatorSettingsModal } from "../../../components/IndicatorSettingsModal.tsx";
 import { useIndicatorSettings } from "../../../hooks/useIndicatorSettings.ts";
 import { INDICATOR_REGISTRY, type IndicatorType } from "../../../lib/indicators.ts";
-import { getCustomPineIndicators } from "../../../lib/pinescript";
+import { CUSTOM_PINE_UPDATED_EVENT, getCustomPineIndicators } from "../../../lib/pinescript";
 import { IndicatorContextMenu } from "./IndicatorContextMenu.tsx";
 import { IndicatorPane } from "./IndicatorPane.tsx";
 import type {
@@ -26,6 +26,13 @@ export function BottomIndicatorsPanel({
 
   const [settingsModalType, setSettingsModalType] = useState<IndicatorType | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [, setPineRevision] = useState(0);
+
+  useEffect(() => {
+    const onPineUpdated = () => setPineRevision((v) => v + 1);
+    window.addEventListener(CUSTOM_PINE_UPDATED_EVENT, onPineUpdated);
+    return () => window.removeEventListener(CUSTOM_PINE_UPDATED_EVENT, onPineUpdated);
+  }, []);
   // Filter active indicators to only those designated for below / sub-chart
   const activeBelow = useMemo(() => {
     const customScripts = getCustomPineIndicators();
@@ -87,6 +94,9 @@ export function BottomIndicatorsPanel({
           onSave={(type, updates) => {
             updateIndicatorSettings(type, updates);
             setSettingsModalType(null);
+          }}
+          onPreview={(type, updates) => {
+            updateIndicatorSettings(type, updates);
           }}
           onReset={(type) => {
             resetIndicatorSettings(type);

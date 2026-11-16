@@ -4,7 +4,7 @@ import { INDICATOR_REGISTRY, type IndicatorType } from "../../../lib/indicators.
 import { cn } from "../../../lib/utils.ts";
 import type { ContextMenuState, IndicatorCalculatedData } from "./types.ts";
 
-import { getCustomPineIndicators } from "../../../lib/pinescript";
+import { getCustomPineIndicators, openPineScriptEditor } from "../../../lib/pinescript";
 
 export interface IndicatorHeaderProps {
   type: IndicatorType;
@@ -170,6 +170,17 @@ export function IndicatorHeader({
             title="Settings"
           >
             <Sliders className="h-3 w-3" />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              openPineScriptEditor(type);
+            }}
+            className="px-1 py-0.5 rounded hover:bg-neutral-700/60 text-neutral-400 hover:text-[#2962ff] font-mono text-[10px] font-bold"
+            title="Edit Pine Script ({/})"
+          >
+            {"{/}"}
           </button>
           <button
             type="button"

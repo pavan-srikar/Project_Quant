@@ -93,8 +93,8 @@ export function useChartData(
       .sort((a, b) => (a.time as number) - (b.time as number));
     const deduped = dedupeByTime(sorted);
 
-    const chartData: CandlestickData<Time>[] = deduped.map(
-      ({ volume: _v, takerBuyVolume: _tb, delta: _d, ...rest }) => rest,
+    const chartData: (CandlestickData<Time> & { volume: number })[] = deduped.map(
+      ({ takerBuyVolume: _tb, delta: _d, ...rest }) => rest,
     );
 
     const volumeData: HistogramData<Time>[] = deduped.map((c) => ({

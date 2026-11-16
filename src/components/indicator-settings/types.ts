@@ -8,6 +8,7 @@ export interface IndicatorSettingsModalProps {
   settings: IndicatorSettings;
   onSave: (type: IndicatorType, updates: Partial<IndicatorSettings>) => void;
   onReset: (type: IndicatorType) => void;
+  onPreview?: (type: IndicatorType, updates: Partial<IndicatorSettings>) => void;
 }
 
 export const COLOR_PALETTE = [

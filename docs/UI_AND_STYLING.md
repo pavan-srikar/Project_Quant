@@ -23,14 +23,15 @@ src/
 │   └── trading/
 │       ├── chart-toolbar/            # Top horizontal chart toolbar (<250 lines each)
 │       │   ├── ChartToolbar.tsx      # Main toolbar bar container
-│       │   ├── SymbolAndChartTypeCapsule.tsx # Combined symbol & chart visualization pill
+│       │   ├── SymbolAndChartTypeCapsule.tsx # Unified enlarged symbol badge & chart type selector
 │       │   ├── SymbolPicker.tsx      # Active symbol trigger with live quote badge
 │       │   ├── TimeframeSelector.tsx # 1m, 5m, 15m, 1h, 4h, 1d quick buttons
 │       │   ├── ChartTypeSelector.tsx # Candles vs Footprint vs Liquidation Heatmap selector
 │       │   ├── ChartTypeSettingsModal.tsx # Dedicated modal for Footprint & Heatmap settings
 │       │   ├── HeatmapSettingsTab.tsx # Heatmap intensity, band height, and colormap options
-│       │   ├── IndicatorMenu.tsx     # Indicator dropdown with search, categories & Pine action
-│       │   ├── PineScriptImportModal.tsx # Custom Pine Script editor & import dialog
+│       │   ├── IndicatorMenu.tsx     # Indicator dropdown with search, categories & {/} Pine action
+│       │   ├── PineScriptEditorModal.tsx # Universal indicator Pine Script editor modal
+│       │   ├── PineScriptImportModal.tsx # Backward-compatible facade for Pine imports
 │       │   ├── PluginsDropdown.tsx   # Toggles session breaks & delta tooltip
 │       │   ├── RightPanelSelector.tsx# Toggles right sidebar between Watchlist and Orders
 │       │   └── LivePriceBadge.tsx    # Live price ticker badge with 24h % change

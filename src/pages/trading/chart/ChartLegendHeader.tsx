@@ -2,7 +2,7 @@ import { Clock, Eye, EyeOff, Sliders, X } from "lucide-react";
 import type { IndicatorSettings } from "../../../hooks/useIndicatorSettings.ts";
 import type { IndicatorType } from "../../../lib/indicators.ts";
 import { formatDelta } from "../../../lib/orderFlowDelta.ts";
-import { getCustomPineIndicators } from "../../../lib/pinescript";
+import { getCustomPineIndicators, openPineScriptEditor } from "../../../lib/pinescript";
 import { cn } from "../../../lib/utils.ts";
 import type { Timeframe } from "../constants.ts";
 import type { OhlcvLegend, TickData } from "./types.ts";
@@ -120,7 +120,10 @@ function getOverlayLabel(
   if (type === "VOL") return `Volume`;
   if (type.startsWith("pine_")) {
     const custom = getCustomPineIndicators().find((c) => c.id === type);
-    return custom?.name || "Pine Script";
+    if (!custom) return "Pine Script";
+    const inputs = { ...(custom.inputs || {}), ...(settings?.pineInputs || {}) };
+    const vals = Object.values(inputs).filter((v) => typeof v === "number" || (typeof v === "string" && !v.startsWith("#") && v.length < 20));
+    return vals.length > 0 ? `${custom.name} ${vals.slice(0, 3).join(" ")}` : custom.name;
   }
   return type;
 }
@@ -249,6 +252,18 @@ export function ChartLegendHeader({
                       <Sliders className="h-3 w-3" />
                     </button>
                   )}
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openPineScriptEditor(type);
+                    }}
+                    className="px-1 py-0.5 rounded hover:bg-[#2962ff]/20 text-neutral-400 hover:text-[#2962ff] font-mono text-[10px] font-bold"
+                    title={`Edit Pine Script ({/}) for ${type}`}
+                  >
+                    {"{/}"}
+                  </button>
 
                   {onRemoveIndicator && (
                     <button

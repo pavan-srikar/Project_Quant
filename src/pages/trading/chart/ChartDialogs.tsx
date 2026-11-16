@@ -183,14 +183,22 @@ export function ChartDialogs({
         hasAccount={!!accountId}
       />
 
-      {indicatorSettingsModalType && indicatorSettings[indicatorSettingsModalType] && (
+      {indicatorSettingsModalType && (
         <IndicatorSettingsModal
           isOpen={true}
           type={indicatorSettingsModalType}
-          settings={indicatorSettings[indicatorSettingsModalType]}
+          settings={
+            indicatorSettings[indicatorSettingsModalType] ?? {
+              color: "#2962ff",
+              visible: true,
+            }
+          }
           onSave={(type, updates) => {
             updateIndicatorSettings(type, updates);
             setIndicatorSettingsModalType(null);
+          }}
+          onPreview={(type, updates) => {
+            updateIndicatorSettings(type, updates);
           }}
           onReset={(type) => {
             resetIndicatorSettings(type);
@@ -198,6 +206,7 @@ export function ChartDialogs({
           onClose={() => setIndicatorSettingsModalType(null)}
         />
       )}
+
     </>
   );
 }

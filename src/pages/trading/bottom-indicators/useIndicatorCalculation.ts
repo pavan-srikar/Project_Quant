@@ -71,12 +71,49 @@ export function useIndicatorCalculation(
           const custom = getCustomPineIndicators().find((c) => c.id === selectedType);
           if (custom) {
             const parsed = parsePineScript(custom.code);
-            const evalRes = evaluatePineScript(indCandles, parsed, custom.inputs);
-            const firstPlot = evalRes.plots[0];
+            const mergedInputs = {
+              ...(custom.inputs || {}),
+              ...(currentSettings.pineInputs || {}),
+            };
+            const evalRes = evaluatePineScript(indCandles, parsed, mergedInputs);
+            const visiblePlots = evalRes.plots.filter(
+              (p) =>
+                !p.displayNone &&
+                (currentSettings.plotVisibility?.[p.id] ??
+                  currentSettings.plotVisibility?.[p.title] ??
+                  true),
+            );
+            const firstPlot = visiblePlots[0] ?? evalRes.plots[0];
             const pts = firstPlot ? firstPlot.values : [];
-            return { type: "CUSTOM", name: custom.name, data: pts };
+            const plots = visiblePlots.map((p) => ({
+              id: p.id,
+              title: p.title,
+              color:
+                currentSettings.plotColors?.[p.id] ??
+                currentSettings.plotColors?.[p.title] ??
+                p.color,
+              lineWidth:
+                currentSettings.plotLineWidths?.[p.id] ??
+                currentSettings.plotLineWidths?.[p.title] ??
+                p.lineWidth,
+              style: (currentSettings.plotStyles?.[p.id] as any) || p.style,
+              values: p.values,
+            }));
+            const hlines = evalRes.hlines.map((h) => ({
+              price: h.price,
+              title: h.title,
+              color: h.color,
+            }));
+            return {
+              type: "CUSTOM",
+              name: custom.name,
+              data: pts,
+              plots: plots.length > 0 ? plots : undefined,
+              hlines: hlines.length > 0 ? hlines : undefined,
+            };
           }
         }
+
         return null;
       }
     }

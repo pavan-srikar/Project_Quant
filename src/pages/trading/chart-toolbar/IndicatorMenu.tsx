@@ -5,9 +5,10 @@ import {
   getCustomPineIndicators,
   deleteCustomPineIndicator,
   CUSTOM_PINE_UPDATED_EVENT,
+  OPEN_PINESCRIPT_EDITOR_EVENT,
   type CustomPineIndicator,
 } from "../../../lib/pinescript";
-import { PineScriptImportModal } from "./PineScriptImportModal.tsx";
+import { PineScriptEditorModal } from "./PineScriptEditorModal.tsx";
 import { cn } from "../../../lib/utils.ts";
 
 export interface IndicatorMenuProps {
@@ -28,21 +29,28 @@ export function IndicatorMenu({
   const [searchQuery, setSearchQuery] = useState("");
   const [category, setCategory] = useState<CategoryFilter>("all");
   const [showImportModal, setShowImportModal] = useState(false);
+  const [editingIndicator, setEditingIndicator] = useState<IndicatorType | null>(null);
   const [customScripts, setCustomScripts] = useState<CustomPineIndicator[]>(() =>
     getCustomPineIndicators(),
   );
 
   useEffect(() => {
     const handleUpdate = () => setCustomScripts(getCustomPineIndicators());
+    const handleOpenEditor = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      setEditingIndicator(detail?.type || null);
+      setShowImportModal(true);
+    };
     window.addEventListener(CUSTOM_PINE_UPDATED_EVENT, handleUpdate);
-    return () => window.removeEventListener(CUSTOM_PINE_UPDATED_EVENT, handleUpdate);
+    window.addEventListener(OPEN_PINESCRIPT_EDITOR_EVENT, handleOpenEditor);
+    return () => {
+      window.removeEventListener(CUSTOM_PINE_UPDATED_EVENT, handleUpdate);
+      window.removeEventListener(OPEN_PINESCRIPT_EDITOR_EVENT, handleOpenEditor);
+    };
   }, []);
 
-  // Filtered built-in and custom indicators
   const filteredItems = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-
-    // Built-in indicators
     const builtIns = INDICATOR_REGISTRY.map((ind) => ({
       id: ind.type,
       label: ind.label,
@@ -50,8 +58,6 @@ export function IndicatorMenu({
       color: ind.color,
       isCustom: false,
     }));
-
-    // Custom Pine Script indicators
     const customs = customScripts.map((cs) => ({
       id: cs.id as IndicatorType,
       label: cs.name,
@@ -59,16 +65,12 @@ export function IndicatorMenu({
       color: cs.color,
       isCustom: true,
     }));
-
     const all = [...builtIns, ...customs];
 
     return all.filter((item) => {
-      // Category filter
       if (category === "overlay" && item.pane !== "overlay") return false;
       if (category === "below" && item.pane !== "below") return false;
       if (category === "custom" && !item.isCustom) return false;
-
-      // Search query
       if (!q) return true;
       return (
         item.label.toLowerCase().includes(q) ||
@@ -117,12 +119,12 @@ export function IndicatorMenu({
             }}
           />
           <div className="absolute top-full left-0 z-50 mt-1 w-80 bg-[#1e222d] border border-[#2a2e39] rounded-xl shadow-2xl p-2.5 backdrop-blur-md flex flex-col text-xs">
-            {/* Header: Title & Pine Script Import Trigger */}
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#2a2e39]">
               <span className="font-semibold text-white text-[13px]">Indicators</span>
               <button
                 onClick={() => {
                   onToggleIndicatorMenu();
+                  setEditingIndicator(null);
                   setShowImportModal(true);
                 }}
                 className="flex items-center gap-1 px-2 py-1 rounded-md bg-[#2962ff]/15 hover:bg-[#2962ff]/25 text-[#2962ff] font-medium text-[11px] transition-colors"
@@ -132,7 +134,6 @@ export function IndicatorMenu({
               </button>
             </div>
 
-            {/* Search Bar */}
             <div className="relative mb-2">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400 pointer-events-none" />
               <input
@@ -153,7 +154,6 @@ export function IndicatorMenu({
               )}
             </div>
 
-            {/* Category Filter Tabs */}
             <div className="flex items-center gap-1 mb-2 overflow-x-auto no-scrollbar pb-0.5">
               {(
                 [
@@ -178,7 +178,6 @@ export function IndicatorMenu({
               ))}
             </div>
 
-            {/* Fixed-length Scrollable List */}
             <div className="max-h-72 overflow-y-auto space-y-0.5 pr-1 no-scrollbar">
               {filteredItems.length === 0 ? (
                 <div className="py-6 text-center text-neutral-400 text-[11px]">
@@ -211,6 +210,21 @@ export function IndicatorMenu({
                       <span className="text-[10px] text-neutral-400 capitalize shrink-0">
                         {ind.pane}
                       </span>
+
+                      {/* {/} Pine Script Edit Option */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingIndicator(ind.id);
+                          setShowImportModal(true);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 px-1 py-0.5 rounded hover:bg-[#2962ff]/20 text-neutral-400 hover:text-[#2962ff] font-mono text-[10px] transition-all shrink-0 ml-0.5 font-bold"
+                        title="Edit Pine Script ({/})"
+                      >
+                        {"{/}"}
+                      </button>
+
                       {ind.isCustom && (
                         <button
                           onClick={(e) => handleDeleteCustom(e, ind.id)}
@@ -229,13 +243,23 @@ export function IndicatorMenu({
         </>
       )}
 
-      {/* Pine Script Importer Dialog */}
-      <PineScriptImportModal
+      <PineScriptEditorModal
         isOpen={showImportModal}
-        onClose={() => setShowImportModal(false)}
-        onIndicatorImported={(type) => {
-          if (!activeIndicators.includes(type)) {
-            onToggleIndicator(type);
+        onClose={() => {
+          setShowImportModal(false);
+          setEditingIndicator(null);
+        }}
+        indicatorType={editingIndicator}
+        onIndicatorSaved={(savedType) => {
+          if (!activeIndicators.includes(savedType)) {
+            if (
+              editingIndicator &&
+              editingIndicator !== savedType &&
+              activeIndicators.includes(editingIndicator)
+            ) {
+              onToggleIndicator(editingIndicator);
+            }
+            onToggleIndicator(savedType);
           }
         }}
       />

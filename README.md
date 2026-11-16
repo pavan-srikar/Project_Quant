@@ -1,8 +1,10 @@
 # Project_Quant
 
+> This repo is made by depression, addiction and obsession.
+
 > An open-source, high-performance financial trading terminal and charting platform built with **React 19**, **TypeScript**, **Tailwind CSS**, and TradingView's **Lightweight Charts (v4.2.0)**.
 > 
-> **Made by pavan_srikar**
+> **Made by pavan_srikar** 
 
 Project_Quant runs entirely client-side with no mandatory backend infrastructure. It features real historical OHLCV data from Binance, real-time live tick simulation, an in-memory paper trading execution engine, technical indicators, drawing tools, trade journaling, and market replay.
 

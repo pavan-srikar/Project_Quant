@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import type { IndicatorType } from "../lib/indicators.ts";
+import { getCustomPineIndicators, parsePineScript } from "../lib/pinescript";
 
 export interface EmaSlotConfig {
   enabled: boolean;
@@ -26,6 +27,19 @@ export interface IndicatorSettings {
   lineWidth?: number;
   visible?: boolean;
   emaSlots?: EmaSlotConfig[];
+  pineInputs?: Record<string, any>;
+  plotVisibility?: Record<string, boolean>;
+  plotColors?: Record<string, string>;
+  plotLineWidths?: Record<string, number>;
+  plotStyles?: Record<string, "solid" | "dashed" | "dotted">;
+  showPolylines?: boolean;
+  showBoxes?: boolean;
+  showLines?: boolean;
+  precision?: string;
+  labelsOnPriceScale?: boolean;
+  valuesInStatusLine?: boolean;
+  inputsInStatusLine?: boolean;
+  visibilityTimeframes?: Record<string, boolean>;
 }
 
 export const DEFAULT_INDICATOR_SETTINGS: Record<IndicatorType, IndicatorSettings> = {
@@ -127,11 +141,17 @@ export function getStoredIndicatorSettings(): Record<IndicatorType, IndicatorSet
     const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return { ...DEFAULT_INDICATOR_SETTINGS };
     const parsed = JSON.parse(raw);
-    const result = { ...DEFAULT_INDICATOR_SETTINGS };
+    const result: Record<string, IndicatorSettings> = { ...DEFAULT_INDICATOR_SETTINGS };
     for (const key of Object.keys(DEFAULT_INDICATOR_SETTINGS) as IndicatorType[]) {
       const def = DEFAULT_INDICATOR_SETTINGS[key];
       if (def && parsed[key]) {
         result[key] = { ...def, ...parsed[key] };
+      }
+    }
+    // Retain settings for custom Pine Script indicators
+    for (const key of Object.keys(parsed)) {
+      if (!(key in DEFAULT_INDICATOR_SETTINGS) && parsed[key]) {
+        result[key] = parsed[key];
       }
     }
     if (result.EMA && (!result.EMA.emaSlots || result.EMA.emaSlots.length === 0)) {
@@ -143,7 +163,7 @@ export function getStoredIndicatorSettings(): Record<IndicatorType, IndicatorSet
         { enabled: false, period: 9, color: "#9c27b0" },
       ];
     }
-    return result;
+    return result as Record<IndicatorType, IndicatorSettings>;
   } catch {
     return { ...DEFAULT_INDICATOR_SETTINGS };
   }
@@ -174,7 +194,25 @@ export function saveIndicatorSettings(
 
 export function resetIndicatorSettings(type: IndicatorType): Record<IndicatorType, IndicatorSettings> {
   const current = getStoredIndicatorSettings();
-  const def = DEFAULT_INDICATOR_SETTINGS[type] ?? { color: "#2962ff", visible: true };
+  let def: IndicatorSettings | undefined = DEFAULT_INDICATOR_SETTINGS[type];
+  if (!def && type.startsWith("pine_")) {
+    const custom = getCustomPineIndicators().find((c) => c.id === type);
+    if (custom) {
+      const parsed = parsePineScript(custom.code);
+      const defaultInputs: Record<string, any> = {};
+      for (const inp of parsed.inputs) {
+        defaultInputs[inp.id] = inp.defval;
+      }
+      def = {
+        color: custom.color || "#2962ff",
+        visible: true,
+        pineInputs: defaultInputs,
+      };
+    }
+  }
+  if (!def) {
+    def = { color: "#2962ff", visible: true };
+  }
   const next: Record<IndicatorType, IndicatorSettings> = {
     ...current,
     [type]: { ...def },

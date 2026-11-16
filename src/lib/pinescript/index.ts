@@ -3,3 +3,8 @@ export * from "./parser";
 export * from "./evaluator";
 export * from "./storage";
 export * from "./samples";
+export * from "./mathFunctions";
+export * from "./indicatorTemplates";
+export * from "./pineRuntime";
+export * from "./pineVM";
+export * from "./pineTSRunner";

@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import type { IndicatorType } from "../../lib/indicators.ts";
 import type { IndicatorSettings } from "../../hooks/useIndicatorSettings.ts";
 import { ColorPicker } from "../color-picker/ColorPicker";
+import { PineScriptStyleSection } from "./PineScriptStyleSection";
 
 export interface IndicatorStyleTabProps {
   type: IndicatorType;
@@ -103,7 +104,12 @@ export function IndicatorStyleTab({ type, draft, setDraft }: IndicatorStyleTabPr
     );
   }
 
-  // 3. General Indicators (RSI, MACD, STOCH, BOLL, SMA, etc.)
+  // 3. Custom Pine Script Indicators (TradingView Style Tab)
+  if (type.startsWith("pine_")) {
+    return <PineScriptStyleSection type={type} draft={draft} setDraft={setDraft} />;
+  }
+
+  // 4. General Built-in Indicators (RSI, MACD, STOCH, BOLL, SMA, etc.)
   return (
     <div className="space-y-4">
       {/* Primary Line Color with Opacity */}

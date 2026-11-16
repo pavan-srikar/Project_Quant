@@ -106,11 +106,11 @@ export function SymbolAndChartTypeCapsule({
 
   return (
     <>
-      <div className="flex items-center gap-1 shrink-0">
+      <div className="flex items-center gap-1.5 shrink-0">
         {/* Unified Capsule (TradingView layout inspiration) */}
-        <div className="flex items-center rounded-lg bg-[#1e222d] border border-[#2a2e39] p-0.5 hover:border-[#3b4150] transition-colors shadow-sm">
+        <div className="flex items-center h-9 rounded-lg bg-[#1e222d] border border-[#2a2e39] px-1 py-0.5 hover:border-[#3b4150] transition-colors shadow-sm">
           {/* Symbol Trigger Button */}
-          <div ref={symbolSearchRef} className="relative">
+          <div ref={symbolSearchRef} className="relative h-full flex items-center">
             <button
               type="button"
               onClick={() => {
@@ -121,7 +121,7 @@ export function SymbolAndChartTypeCapsule({
                 }
               }}
               title="Search symbol (Alt+S)"
-              className="flex items-center gap-1 px-2.5 py-1 rounded-md hover:bg-[#2a2e39] text-xs sm:text-sm font-bold tracking-tight text-neutral-100 hover:text-white transition-colors cursor-pointer select-none"
+              className="flex items-center justify-center h-full min-w-[76px] sm:min-w-[84px] px-3 py-1 rounded-md hover:bg-[#2a2e39] text-xs sm:text-sm font-bold tracking-tight text-neutral-100 hover:text-white transition-colors cursor-pointer select-none"
             >
               <span>{selectedSymbol}</span>
             </button>
@@ -173,23 +173,23 @@ export function SymbolAndChartTypeCapsule({
           </div>
 
           {/* Thin Vertical Separator inside Capsule */}
-          <div className="h-3.5 w-px bg-[#2a2e39] mx-0.5" />
+          <div className="h-4 w-px bg-[#2a2e39] mx-1" />
 
           {/* Chart Type Icon Button */}
-          <div ref={chartTypeRef} className="relative">
+          <div ref={chartTypeRef} className="relative h-full flex items-center">
             <button
               type="button"
               onClick={() => setIsChartTypeOpen((prev) => !prev)}
               title={`Chart Type: ${activeOption.label}`}
-              className={`flex items-center gap-1 px-1.5 py-1 rounded-md text-xs transition-colors cursor-pointer select-none ${
+              className={`flex items-center h-full gap-1.5 px-2 py-1 rounded-md text-xs transition-colors cursor-pointer select-none ${
                 isChartTypeOpen
                   ? "bg-[#2a2e39] text-white"
                   : "text-neutral-300 hover:text-white hover:bg-[#2a2e39]"
               }`}
             >
-              <ActiveIcon className="w-3.5 h-3.5 text-neutral-300" />
+              <ActiveIcon className="w-4 h-4 text-neutral-300" />
               <ChevronDown
-                className={`w-2.5 h-2.5 text-neutral-400 transition-transform ${isChartTypeOpen ? "rotate-180" : ""}`}
+                className={`w-3 h-3 text-neutral-400 transition-transform ${isChartTypeOpen ? "rotate-180" : ""}`}
               />
             </button>
 
@@ -245,9 +245,9 @@ export function SymbolAndChartTypeCapsule({
             setIsSettingsOpen(true);
           }}
           title="Configure Chart Visualization Settings"
-          className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-[#1e222d] border border-transparent hover:border-[#2a2e39] transition-colors cursor-pointer"
+          className="w-9 h-9 flex items-center justify-center rounded-lg text-neutral-400 hover:text-white hover:bg-[#1e222d] border border-[#2a2e39]/60 hover:border-[#2a2e39] transition-colors cursor-pointer"
         >
-          <Settings className="w-3.5 h-3.5" />
+          <Settings className="w-4 h-4" />
         </button>
       </div>
 

@@ -59,5 +59,18 @@ export type IndicatorCalculatedData =
     }
   | { type: "CCI"; period: number; data: { time: number; value: number }[] }
   | { type: "WR"; period: number; data: { time: number; value: number }[] }
-  | { type: "CUSTOM"; name: string; data: { time: number; value: number }[] }
+  | {
+      type: "CUSTOM";
+      name: string;
+      data: { time: number; value: number }[];
+      plots?: {
+        id: string;
+        title: string;
+        color: string;
+        lineWidth: number;
+        style?: "columns" | "histogram" | "line" | "area" | "circles" | "cross";
+        values: { time: number; value: number }[];
+      }[];
+      hlines?: { price: number; title: string; color: string }[];
+    }
   | null;

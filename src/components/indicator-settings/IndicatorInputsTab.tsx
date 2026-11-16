@@ -2,6 +2,8 @@ import React from "react";
 import type { IndicatorType } from "../../lib/indicators.ts";
 import type { IndicatorSettings } from "../../hooks/useIndicatorSettings.ts";
 import { EmaSlotsSection } from "./EmaSlotsSection";
+import { PineScriptInputsSection } from "./PineScriptInputsSection";
+import { NumberStepper } from "./NumberStepper";
 
 export interface IndicatorInputsTabProps {
   type: IndicatorType;
@@ -17,41 +19,32 @@ export function IndicatorInputsTab({ type, draft, setDraft }: IndicatorInputsTab
         <>
           <div className="flex items-center justify-between">
             <label className="text-neutral-300 font-medium">Period / Length</label>
-            <input
-              type="number"
+            <NumberStepper
+              value={draft.period ?? 14}
               min={1}
               max={200}
-              value={draft.period ?? 14}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, period: Math.max(1, parseInt(e.target.value, 10) || 1) }))
-              }
-              className="w-24 px-2.5 py-1.5 rounded-lg bg-[#131722] border border-[#2a2e39] text-white font-mono text-xs focus:outline-none focus:border-[#2962ff]"
+              step={1}
+              onChange={(val) => setDraft((d) => ({ ...d, period: val }))}
             />
           </div>
           <div className="flex items-center justify-between">
             <label className="text-neutral-300 font-medium">Overbought Level</label>
-            <input
-              type="number"
+            <NumberStepper
+              value={draft.overbought ?? 70}
               min={50}
               max={100}
-              value={draft.overbought ?? 70}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, overbought: parseInt(e.target.value, 10) || 70 }))
-              }
-              className="w-24 px-2.5 py-1.5 rounded-lg bg-[#131722] border border-[#2a2e39] text-white font-mono text-xs focus:outline-none focus:border-[#2962ff]"
+              step={1}
+              onChange={(val) => setDraft((d) => ({ ...d, overbought: val }))}
             />
           </div>
           <div className="flex items-center justify-between">
             <label className="text-neutral-300 font-medium">Oversold Level</label>
-            <input
-              type="number"
+            <NumberStepper
+              value={draft.oversold ?? 30}
               min={0}
               max={50}
-              value={draft.oversold ?? 30}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, oversold: parseInt(e.target.value, 10) || 30 }))
-              }
-              className="w-24 px-2.5 py-1.5 rounded-lg bg-[#131722] border border-[#2a2e39] text-white font-mono text-xs focus:outline-none focus:border-[#2962ff]"
+              step={1}
+              onChange={(val) => setDraft((d) => ({ ...d, oversold: val }))}
             />
           </div>
         </>
@@ -62,41 +55,32 @@ export function IndicatorInputsTab({ type, draft, setDraft }: IndicatorInputsTab
         <>
           <div className="flex items-center justify-between">
             <label className="text-neutral-300 font-medium">Fast Length</label>
-            <input
-              type="number"
+            <NumberStepper
+              value={draft.fast ?? 12}
               min={1}
               max={100}
-              value={draft.fast ?? 12}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, fast: Math.max(1, parseInt(e.target.value, 10) || 1) }))
-              }
-              className="w-24 px-2.5 py-1.5 rounded-lg bg-[#131722] border border-[#2a2e39] text-white font-mono text-xs focus:outline-none focus:border-[#2962ff]"
+              step={1}
+              onChange={(val) => setDraft((d) => ({ ...d, fast: val }))}
             />
           </div>
           <div className="flex items-center justify-between">
             <label className="text-neutral-300 font-medium">Slow Length</label>
-            <input
-              type="number"
+            <NumberStepper
+              value={draft.slow ?? 26}
               min={1}
               max={200}
-              value={draft.slow ?? 26}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, slow: Math.max(1, parseInt(e.target.value, 10) || 1) }))
-              }
-              className="w-24 px-2.5 py-1.5 rounded-lg bg-[#131722] border border-[#2a2e39] text-white font-mono text-xs focus:outline-none focus:border-[#2962ff]"
+              step={1}
+              onChange={(val) => setDraft((d) => ({ ...d, slow: val }))}
             />
           </div>
           <div className="flex items-center justify-between">
             <label className="text-neutral-300 font-medium">Signal Smoothing</label>
-            <input
-              type="number"
+            <NumberStepper
+              value={draft.signal ?? 9}
               min={1}
               max={50}
-              value={draft.signal ?? 9}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, signal: Math.max(1, parseInt(e.target.value, 10) || 1) }))
-              }
-              className="w-24 px-2.5 py-1.5 rounded-lg bg-[#131722] border border-[#2a2e39] text-white font-mono text-xs focus:outline-none focus:border-[#2962ff]"
+              step={1}
+              onChange={(val) => setDraft((d) => ({ ...d, signal: val }))}
             />
           </div>
         </>
@@ -109,15 +93,12 @@ export function IndicatorInputsTab({ type, draft, setDraft }: IndicatorInputsTab
       {(type === "SMA" || type === "ATR" || type === "CCI" || type === "WR") && (
         <div className="flex items-center justify-between">
           <label className="text-neutral-300 font-medium">Period / Length</label>
-          <input
-            type="number"
+          <NumberStepper
+            value={draft.period ?? (type === "ATR" || type === "WR" ? 14 : 20)}
             min={1}
             max={500}
-            value={draft.period ?? (type === "ATR" || type === "WR" ? 14 : 20)}
-            onChange={(e) =>
-              setDraft((d) => ({ ...d, period: Math.max(1, parseInt(e.target.value, 10) || 1) }))
-            }
-            className="w-24 px-2.5 py-1.5 rounded-lg bg-[#131722] border border-[#2a2e39] text-white font-mono text-xs focus:outline-none focus:border-[#2962ff]"
+            step={1}
+            onChange={(val) => setDraft((d) => ({ ...d, period: val }))}
           />
         </div>
       )}
@@ -127,29 +108,22 @@ export function IndicatorInputsTab({ type, draft, setDraft }: IndicatorInputsTab
         <>
           <div className="flex items-center justify-between">
             <label className="text-neutral-300 font-medium">Period / Length</label>
-            <input
-              type="number"
+            <NumberStepper
+              value={draft.period ?? 20}
               min={1}
               max={200}
-              value={draft.period ?? 20}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, period: Math.max(1, parseInt(e.target.value, 10) || 1) }))
-              }
-              className="w-24 px-2.5 py-1.5 rounded-lg bg-[#131722] border border-[#2a2e39] text-white font-mono text-xs focus:outline-none focus:border-[#2962ff]"
+              step={1}
+              onChange={(val) => setDraft((d) => ({ ...d, period: val }))}
             />
           </div>
           <div className="flex items-center justify-between">
             <label className="text-neutral-300 font-medium">StdDev Multiplier</label>
-            <input
-              type="number"
-              step={0.1}
+            <NumberStepper
+              value={draft.stdDev ?? 2}
               min={0.5}
               max={5}
-              value={draft.stdDev ?? 2}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, stdDev: parseFloat(e.target.value) || 2 }))
-              }
-              className="w-24 px-2.5 py-1.5 rounded-lg bg-[#131722] border border-[#2a2e39] text-white font-mono text-xs focus:outline-none focus:border-[#2962ff]"
+              step={0.1}
+              onChange={(val) => setDraft((d) => ({ ...d, stdDev: val }))}
             />
           </div>
         </>
@@ -160,54 +134,42 @@ export function IndicatorInputsTab({ type, draft, setDraft }: IndicatorInputsTab
         <>
           <div className="flex items-center justify-between">
             <label className="text-neutral-300 font-medium">%K Period</label>
-            <input
-              type="number"
+            <NumberStepper
+              value={draft.kPeriod ?? 14}
               min={1}
               max={100}
-              value={draft.kPeriod ?? 14}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, kPeriod: Math.max(1, parseInt(e.target.value, 10) || 1) }))
-              }
-              className="w-24 px-2.5 py-1.5 rounded-lg bg-[#131722] border border-[#2a2e39] text-white font-mono text-xs focus:outline-none focus:border-[#2962ff]"
+              step={1}
+              onChange={(val) => setDraft((d) => ({ ...d, kPeriod: val }))}
             />
           </div>
           <div className="flex items-center justify-between">
             <label className="text-neutral-300 font-medium">%D Smoothing</label>
-            <input
-              type="number"
+            <NumberStepper
+              value={draft.dPeriod ?? 3}
               min={1}
               max={50}
-              value={draft.dPeriod ?? 3}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, dPeriod: Math.max(1, parseInt(e.target.value, 10) || 1) }))
-              }
-              className="w-24 px-2.5 py-1.5 rounded-lg bg-[#131722] border border-[#2a2e39] text-white font-mono text-xs focus:outline-none focus:border-[#2962ff]"
+              step={1}
+              onChange={(val) => setDraft((d) => ({ ...d, dPeriod: val }))}
             />
           </div>
           <div className="flex items-center justify-between">
             <label className="text-neutral-300 font-medium">Overbought Level</label>
-            <input
-              type="number"
+            <NumberStepper
+              value={draft.overbought ?? 80}
               min={50}
               max={100}
-              value={draft.overbought ?? 80}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, overbought: parseInt(e.target.value, 10) || 80 }))
-              }
-              className="w-24 px-2.5 py-1.5 rounded-lg bg-[#131722] border border-[#2a2e39] text-white font-mono text-xs focus:outline-none focus:border-[#2962ff]"
+              step={1}
+              onChange={(val) => setDraft((d) => ({ ...d, overbought: val }))}
             />
           </div>
           <div className="flex items-center justify-between">
             <label className="text-neutral-300 font-medium">Oversold Level</label>
-            <input
-              type="number"
+            <NumberStepper
+              value={draft.oversold ?? 20}
               min={0}
               max={50}
-              value={draft.oversold ?? 20}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, oversold: parseInt(e.target.value, 10) || 20 }))
-              }
-              className="w-24 px-2.5 py-1.5 rounded-lg bg-[#131722] border border-[#2a2e39] text-white font-mono text-xs focus:outline-none focus:border-[#2962ff]"
+              step={1}
+              onChange={(val) => setDraft((d) => ({ ...d, oversold: val }))}
             />
           </div>
         </>
@@ -229,9 +191,7 @@ export function IndicatorInputsTab({ type, draft, setDraft }: IndicatorInputsTab
 
       {/* Pine Script Inputs */}
       {type.startsWith("pine_") && (
-        <div className="p-3 rounded-lg bg-[#131722] text-neutral-400 leading-relaxed">
-          Custom Pine Script indicator. Inputs and parameters are evaluated directly from the script definition.
-        </div>
+        <PineScriptInputsSection type={type} draft={draft} setDraft={setDraft} />
       )}
     </div>
   );
