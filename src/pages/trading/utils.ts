@@ -46,24 +46,44 @@ export function toUnixMs(ts: number): number {
   return ts > 1e12 ? ts : ts * 1000;
 }
 
-/** Convert candles for indicator lib */
-export function toIndicatorCandles(candles: (CandlestickData<Time> | { time?: number | string; timestamp?: number | string; open: number; high: number; low: number; close: number; volume?: number })[]): CandleData[] {
-  const map = new Map<number, CandleData>();
-  for (const c of candles) {
+const candleDataCache = new WeakMap<object, CandleData[]>();
+
+/** Convert candles for indicator lib with zero-leak WeakMap cache */
+export function toIndicatorCandles(
+  candles: (CandlestickData<Time> | { time?: number | string; timestamp?: number | string; open: number; high: number; low: number; close: number; volume?: number })[],
+): CandleData[] {
+  if (!candles || candles.length === 0) return [];
+
+  const cached = candleDataCache.get(candles as any);
+  if (cached) return cached;
+
+  const len = candles.length;
+  const out: CandleData[] = new Array(len);
+  let writeIdx = 0;
+
+  for (let i = 0; i < len; i++) {
+    const c = candles[i]!;
     const rawTime = (c as any).time ?? (c as any).timestamp;
     if (rawTime == null) continue;
     const sec = toUnixSeconds(rawTime);
     if (Number.isNaN(sec) || sec <= 0) continue;
-    map.set(sec, {
+    out[writeIdx++] = {
       time: sec,
       open: Number(c.open),
       high: Number(c.high),
       low: Number(c.low),
       close: Number(c.close),
       volume: Number((c as any).volume) || 0,
-    });
+    };
   }
-  return Array.from(map.values()).sort((a, b) => a.time - b.time);
+
+  const result = writeIdx === len ? out : out.slice(0, writeIdx);
+  if (result.length > 1 && result[0]!.time > result[result.length - 1]!.time) {
+    result.sort((a, b) => a.time - b.time);
+  }
+
+  candleDataCache.set(candles as any, result);
+  return result;
 }
 
 /** Format seconds remaining as M:SS or H:MM:SS */

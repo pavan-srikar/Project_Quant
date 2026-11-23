@@ -23,21 +23,32 @@ export function useIndicatorCalculation(
   selectedType: IndicatorType,
   currentSettings: IndicatorSettings,
 ) {
-  const indCandles = useMemo(() => toIndicatorCandles(candles), [candles]);
-  const candleTimes = useMemo(() => indCandles.map((c) => c.time), [indCandles]);
+  const indCandles = toIndicatorCandles(candles);
+  const firstBarTime = indCandles[0]?.time ?? 0;
+  const firstBarClose = indCandles[0]?.close ?? 0;
+  const lastBarTime = indCandles[indCandles.length - 1]?.time ?? 0;
+  const candleTimes = useMemo(
+    () => indCandles.map((c) => c.time),
+    [indCandles.length, firstBarTime, lastBarTime],
+  );
   const [asyncPineData, setAsyncPineData] = useState<IndicatorCalculatedData>(null);
   const lastComputedKeyRef = useRef<string>("");
+  const activeCompKeyRef = useRef<string>("");
+  const timePriceMapRef = useRef<Map<number, number>>(new Map());
+  const prevDataLenRef = useRef<number>(0);
 
   useEffect(() => {
     if (!selectedType.startsWith("pine_") || indCandles.length === 0) {
       setAsyncPineData(null);
       lastComputedKeyRef.current = "";
+      activeCompKeyRef.current = "";
       return;
     }
     const custom = getCustomPineIndicators().find((c) => c.id === selectedType);
     if (!custom) {
       setAsyncPineData(null);
       lastComputedKeyRef.current = "";
+      activeCompKeyRef.current = "";
       return;
     }
 
@@ -45,17 +56,17 @@ export function useIndicatorCalculation(
       ...(custom.inputs || {}),
       ...(currentSettings.pineInputs || {}),
     };
-    const compKey = `${selectedType}_${custom.code.length}_${JSON.stringify(mergedInputs)}_${indCandles.length}_${indCandles[indCandles.length - 1]?.time ?? 0}`;
+    const compKey = `${selectedType}_${custom.code.length}_${JSON.stringify(mergedInputs)}_${firstBarTime}_${firstBarClose}_${indCandles.length}_${lastBarTime}`;
     if (lastComputedKeyRef.current === compKey && asyncPineData) {
       return;
     }
 
-    let cancelled = false;
+    activeCompKeyRef.current = compKey;
     const compute = async () => {
       try {
         const parsed = parsePineScript(custom.code);
         const evalRes = await evaluatePineScriptAsync(indCandles, parsed, mergedInputs, custom.code);
-        if (cancelled) return;
+        if (activeCompKeyRef.current !== compKey) return;
         lastComputedKeyRef.current = compKey;
 
         const visiblePlots = evalRes.plots.filter(
@@ -88,6 +99,7 @@ export function useIndicatorCalculation(
           color: h.color,
         }));
 
+        if (activeCompKeyRef.current !== compKey) return;
         setAsyncPineData({
           type: "CUSTOM",
           name: custom.name,
@@ -105,13 +117,12 @@ export function useIndicatorCalculation(
     };
 
     compute();
-    return () => {
-      cancelled = true;
-    };
   }, [
     selectedType,
     indCandles.length,
-    indCandles[indCandles.length - 1]?.time,
+    firstBarTime,
+    firstBarClose,
+    lastBarTime,
     currentSettings.pineInputs,
     currentSettings.plotVisibility,
     currentSettings.plotColors,
@@ -176,9 +187,14 @@ export function useIndicatorCalculation(
   ]);
 
   const timePriceMap = useMemo(() => {
-    const map = new Map<number, number>();
-    if (!indicatorData) return map;
+    if (!indicatorData) {
+      timePriceMapRef.current.clear();
+      prevDataLenRef.current = 0;
+      return timePriceMapRef.current;
+    }
 
+    const map = timePriceMapRef.current;
+    let pts: { time: number; value: number }[] | undefined;
     if (
       indicatorData.type === "RSI" ||
       indicatorData.type === "ATR" ||
@@ -186,18 +202,41 @@ export function useIndicatorCalculation(
       indicatorData.type === "WR" ||
       indicatorData.type === "CUSTOM"
     ) {
-      for (const p of indicatorData.data) {
-        map.set(p.time, p.value);
-      }
+      pts = indicatorData.data;
     } else if (indicatorData.type === "MACD") {
-      for (const m of indicatorData.data.macd) {
-        map.set(m.time, m.value);
-      }
+      pts = indicatorData.data.macd;
     } else if (indicatorData.type === "STOCH") {
-      for (const k of indicatorData.data.k) {
-        map.set(k.time, k.value);
-      }
+      pts = indicatorData.data.k;
     }
+
+    if (!pts || pts.length === 0) {
+      map.clear();
+      prevDataLenRef.current = 0;
+      return map;
+    }
+
+    // Fast path: live tick on current bar (same length) -> update last point O(1)
+    if (map.size > 0 && pts.length === prevDataLenRef.current) {
+      const lastPt = pts[pts.length - 1]!;
+      map.set(lastPt.time, lastPt.value);
+      return map;
+    }
+
+    // Fast path: single new bar appended
+    if (map.size > 0 && pts.length === prevDataLenRef.current + 1) {
+      const lastPt = pts[pts.length - 1]!;
+      map.set(lastPt.time, lastPt.value);
+      prevDataLenRef.current = pts.length;
+      return map;
+    }
+
+    // Cold path: full rebuild on symbol switch / initial data load
+    map.clear();
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i]!;
+      map.set(p.time, p.value);
+    }
+    prevDataLenRef.current = pts.length;
     return map;
   }, [indicatorData]);
 

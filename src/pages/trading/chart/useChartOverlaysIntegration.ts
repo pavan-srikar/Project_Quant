@@ -95,7 +95,15 @@ export function useChartOverlaysIntegration(params: ChartOverlaysIntegrationPara
     chartEpoch,
   });
 
-  const { pineTables } = useIndicators(chartRef, candleSeriesRef, chartData, activeIndicators, isDark);
+  const { pineTables } = useIndicators(
+    chartRef,
+    candleSeriesRef,
+    chartData,
+    activeIndicators,
+    isDark,
+    selectedSymbol,
+    chartEpoch,
+  );
 
   return { dragPrice, pineTables };
 }

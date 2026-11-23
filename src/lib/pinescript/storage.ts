@@ -1,7 +1,9 @@
 import type { CustomPineIndicator } from "./types";
 import { parsePineScript } from "./parser";
+import { DEFAULT_PRELOADED_PINE_SCRIPTS } from "./preloaded";
 
 const STORAGE_KEY = "project_quant_custom_pine_scripts";
+const DELETED_DEFAULTS_KEY = "project_quant_deleted_pine_defaults";
 export const CUSTOM_PINE_UPDATED_EVENT = "custom-pine-indicators-updated";
 export const OPEN_PINESCRIPT_EDITOR_EVENT = "open-pinescript-editor";
 
@@ -14,14 +16,39 @@ export function openPineScriptEditor(type?: string | null): void {
 }
 
 export function getCustomPineIndicators(): CustomPineIndicator[] {
-  if (typeof window === "undefined") return [];
+  if (typeof window === "undefined") return [...DEFAULT_PRELOADED_PINE_SCRIPTS];
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const list = JSON.parse(raw);
-    return Array.isArray(list) ? list : [];
+    const deletedRaw = localStorage.getItem(DELETED_DEFAULTS_KEY);
+    const deletedIds: string[] = deletedRaw ? JSON.parse(deletedRaw) : [];
+
+    let list: CustomPineIndicator[] = [];
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        list = parsed;
+      }
+    }
+
+    let hasChanges = false;
+    for (const def of DEFAULT_PRELOADED_PINE_SCRIPTS) {
+      if (deletedIds.includes(def.id)) continue;
+      const existingIdx = list.findIndex(
+        (item) => item.id === def.id || item.name === def.name,
+      );
+      if (existingIdx === -1) {
+        list.push(def);
+        hasChanges = true;
+      }
+    }
+
+    if (hasChanges || !raw) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+    }
+
+    return list;
   } catch {
-    return [];
+    return [...DEFAULT_PRELOADED_PINE_SCRIPTS];
   }
 }
 
@@ -126,6 +153,18 @@ export function updateCustomPineIndicatorInputs(
 }
 
 export function deleteCustomPineIndicator(id: string): void {
+  const isDefault = DEFAULT_PRELOADED_PINE_SCRIPTS.some((d) => d.id === id);
+  if (isDefault && typeof window !== "undefined") {
+    try {
+      const deletedRaw = localStorage.getItem(DELETED_DEFAULTS_KEY);
+      const deletedIds: string[] = deletedRaw ? JSON.parse(deletedRaw) : [];
+      if (!deletedIds.includes(id)) {
+        deletedIds.push(id);
+        localStorage.setItem(DELETED_DEFAULTS_KEY, JSON.stringify(deletedIds));
+      }
+    } catch {}
+  }
+
   const list = getCustomPineIndicators().filter((item) => item.id !== id);
   if (typeof window !== "undefined") {
     try {

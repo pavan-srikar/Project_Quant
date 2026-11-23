@@ -59,6 +59,10 @@ src/lib/chart-plugins/
 │   └── heatmap-types.ts            # Types for leverage tiers and liquidation pool bands
 ├── bands-indicator/                # Bollinger Bands Shaded Area Subsystem
 │   └── bands-indicator.ts          # Primitive & Canvas2D renderer drawing filled band zones
+├── pine-primitive/                 # Pine Script Drawing & Vector Primitive Subsystem
+│   ├── index.ts                    # Barrel export
+│   ├── pine-renderer-primitive.ts  # ISeriesPrimitive mounting background & foreground Pine renderers
+│   └── pine-coord-resolver.ts      # Dual time & bar-index coordinate resolver with forward extrapolation
 ├── session-breaks/                 # Market Session Separators
 │   └── session-breaks.ts           # Dotted vertical lines marking Asian, London, and NY opens
 ├── delta-tooltip/                  # Multi-Touch Candlestick Inspector

@@ -38,7 +38,7 @@ export class PineVirtualMachine {
     let labels: PineLabel[] | undefined;
 
     // 1. Forecast & Polylines VM runtime
-    if (parsed.hasForecastPolyline || parsed.fills.length > 0) {
+    if (parsed.hasForecastPolyline || (parsed.fills.length > 0 && /forecast/i.test(parsed.title || ""))) {
       const uptrend = Array.isArray(context.uptrend) ? (context.uptrend as boolean[]) : new Array(n).fill(true);
       const upInit = Array.isArray(context.uptrend_init_price) ? (context.uptrend_init_price as number[]) : (context.close as number[]);
       const dnInit = Array.isArray(context.downtrend_init_price) ? (context.downtrend_init_price as number[]) : (context.close as number[]);
@@ -77,7 +77,7 @@ export class PineVirtualMachine {
       boxes = swings.boxes;
       lines = swings.lines;
       labels = swings.labels;
-    } else if (parsed.isLiquiditySweeps || parsed.hasBoxesOrLines) {
+    } else if (parsed.isLiquiditySweeps) {
       const sweeps = computeLiquiditySweeps(candles, {
         len: Number(context.len) || 5,
         opt: typeof context.opt === "string" ? context.opt : "Only Wicks",

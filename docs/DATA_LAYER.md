@@ -38,7 +38,7 @@ src/services/
 ## 2. Market Data Ingestion Pipeline
 
 ```
-Binance Public REST API (api.binance.com)
+Binance Cluster Endpoints (api.binance.com, api1, api2, api3) ──► Promise.any Race (2.5s timeout)
             │ (on failure / offline)
             ▼
 Bundled JSON Fallback (src/services/demo/data/*.json)
@@ -52,6 +52,9 @@ klines.ts ──► Normalize timestamps & volumes ──► priceStorage.ts Cac
                                                         ▼
                                              Chart Data Pipeline
 ```
+
+### Binance Multi-Cluster Mirror Racing
+To guarantee sub-second (<500ms) chart loading when switching or opening new coins, `binanceClient.ts` races requests across official Binance endpoints (`api.binance.com`, `api1.binance.com`, `api2.binance.com`, `api3.binance.com`) using `Promise.any` paired with `AbortController` signals (2.5s timeout). The fastest responding cluster delivers data immediately, eliminating regional ISP throttling delays.
 
 ### Candle Normalization
 Binance kline arrays `[time, open, high, low, close, volume, ...]` are mapped into strictly typed `Candle` objects:

@@ -3,7 +3,7 @@ import type {
   ISeriesApi,
   MouseEventParams,
 } from "lightweight-charts";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 export function useChartSync(
   chartRef: React.RefObject<IChartApi | null>,
@@ -14,6 +14,9 @@ export function useChartSync(
   mainSeriesRef: React.RefObject<ISeriesApi<any> | null>,
   onCrosshairTimeChange?: (time: number | null) => void,
 ) {
+  const timePriceMapRef = useRef(timePriceMap);
+  timePriceMapRef.current = timePriceMap;
+
   // 1. Bidirectional zero-lag synchronization between mainChart and sub-chart
   useEffect(() => {
     const chart = chartRef.current;
@@ -69,7 +72,7 @@ export function useChartSync(
     };
   }, [mainChart, chartEpoch, chartRef, isSubInteractingRef]);
 
-  // 1b. Force sync sub-chart range whenever indicator data updates (e.g. coin switch)
+  // 1b. Force sync sub-chart range on mount / chartEpoch
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart || !mainChart) return;
@@ -87,7 +90,7 @@ export function useChartSync(
     syncWithMain();
     const raf = requestAnimationFrame(syncWithMain);
     return () => cancelAnimationFrame(raf);
-  }, [mainChart, chartEpoch, chartRef, timePriceMap, isSubInteractingRef]);
+  }, [mainChart, chartEpoch, chartRef, isSubInteractingRef]);
 
   // 2. Align right price scale width with mainChart so timestamps align to the pixel
   useEffect(() => {
@@ -110,7 +113,7 @@ export function useChartSync(
     return () => clearInterval(interval);
   }, [mainChart, chartEpoch, chartRef]);
 
-  // 3. Sync crosshair position from mainChart to sub-chart
+  // 3. Sync crosshair position from mainChart to sub-chart (stable listener)
   useEffect(() => {
     if (!mainChart) return;
 
@@ -142,7 +145,7 @@ export function useChartSync(
 
       dispatchTimeChange(param.time as number);
 
-      const val = timePriceMap.get(param.time as number);
+      const val = timePriceMapRef.current.get(param.time as number);
       if (val !== undefined) {
         try {
           chart.setCrosshairPosition(val, param.time, mainSeries);
@@ -161,7 +164,7 @@ export function useChartSync(
         mainChart.unsubscribeCrosshairMove(onMainCrosshair);
       } catch {}
     };
-  }, [mainChart, timePriceMap, chartEpoch, chartRef, mainSeriesRef, onCrosshairTimeChange]);
+  }, [mainChart, chartEpoch, chartRef, mainSeriesRef, onCrosshairTimeChange]);
 
   // 4. Sub-chart crosshair move to update header values
   useEffect(() => {

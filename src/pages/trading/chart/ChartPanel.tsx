@@ -181,7 +181,8 @@ export function ChartPanel({
       setLegend,
       hoveredTime: refs.hoveredTimeRef,
     }),
-    [colors, timeframe, selectedSymbol, queryClient, refs],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [colors, timeframe, selectedSymbol, queryClient],
   );
 
   useRealtimeEffects({
@@ -281,6 +282,14 @@ export function ChartPanel({
         drawings={drawings}
       />
 
+      {chartData.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 bg-background/20 backdrop-blur-[1px]">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-background/90 border border-border/50 text-xs text-muted-foreground shadow-md animate-pulse">
+            <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <span>Loading {selectedSymbol}...</span>
+          </div>
+        </div>
+      )}
       <div ref={refs.containerRef} className="w-full h-full" onContextMenu={menuActions.handleChartContextMenu} />
       <DrawingToolRail drawingTool={drawingTool} onDrawingTool={(t) => onDrawingToolSelect?.(t)} />
     </div>

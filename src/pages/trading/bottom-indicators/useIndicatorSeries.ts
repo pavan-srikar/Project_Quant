@@ -86,6 +86,8 @@ export function useIndicatorSeries(
 
     if (isSameSeries) {
       // Just update data on existing series (smooth, 0ms, zero lag!)
+      const prevCount = state.lastBarCount;
+      const prevFirstTime = state.lastFirstTime;
       updateSeriesData(state, indicatorData, candleTimes, currentSettings);
       if (paneLabels.length > 0) {
         if (!primitiveRef.current) {
@@ -99,9 +101,12 @@ export function useIndicatorSeries(
         } catch {}
         primitiveRef.current = null;
       }
-      syncLogicalRange();
-      const raf = requestAnimationFrame(syncLogicalRange);
-      return () => cancelAnimationFrame(raf);
+      if (prevCount !== candleTimes.length || prevFirstTime !== candleTimes[0]) {
+        syncLogicalRange();
+        const raf = requestAnimationFrame(syncLogicalRange);
+        return () => cancelAnimationFrame(raf);
+      }
+      return;
     }
 
     // Indicator type, style settings, or chart instance changed: rebuild series

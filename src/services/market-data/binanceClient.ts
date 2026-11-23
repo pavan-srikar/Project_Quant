@@ -35,11 +35,18 @@ async function loadFallbackSeries(symbol: string, timeframe: string): Promise<Ca
   }
 }
 
+const BINANCE_HOSTS = [
+  "https://api.binance.com",
+  "https://api1.binance.com",
+  "https://api2.binance.com",
+  "https://api3.binance.com",
+];
+
 // In-flight request deduplication map to prevent redundant concurrent fetches
 const inflightRequests = new Map<string, Promise<Candle[]>>();
 
 /**
- * Direct typed fetcher for Binance v3 klines with deduplication and error handling.
+ * Direct typed fetcher for Binance v3 klines with deduplication, mirror racing & 2.5s timeout.
  */
 export async function fetchBinanceKlinesRaw(
   binancePair: string,
@@ -56,15 +63,20 @@ export async function fetchBinanceKlinesRaw(
   if (existingReq) return existingReq;
 
   const reqPromise = (async () => {
-    let url = `https://api.binance.com/api/v3/klines?symbol=${binancePair}&interval=${timeframe}&limit=${safeLimit}`;
-    if (start > 0) url += `&startTime=${start}`;
-    if (end > 0) url += `&endTime=${end}`;
+    const query = `symbol=${binancePair}&interval=${timeframe}&limit=${safeLimit}${start > 0 ? `&startTime=${start}` : ""}${end > 0 ? `&endTime=${end}` : ""}`;
+    const fetchMirror = async (host: string): Promise<(number | string)[][]> => {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 2500);
+      try {
+        const res = await fetch(`${host}/api/v3/klines?${query}`, { signal: ctrl.signal });
+        if (!res.ok) throw new Error(`Binance klines HTTP ${res.status}`);
+        return (await res.json()) as (number | string)[][];
+      } finally {
+        clearTimeout(timer);
+      }
+    };
 
-    const res = await fetch(url);
-    if (!res.ok) {
-      throw new Error(`Binance klines error (${binancePair} ${timeframe}): ${res.status}`);
-    }
-    const rows = (await res.json()) as (number | string)[][];
+    const rows = await Promise.any(BINANCE_HOSTS.map(fetchMirror));
     return rows.map((row) => {
       const volume = Number(row[5]);
       const takerBuy = row[9] !== undefined ? Number(row[9]) : undefined;

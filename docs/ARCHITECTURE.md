@@ -13,7 +13,7 @@ Use this index to jump straight to the dedicated documentation and exact source 
 | :--- | :--- | :--- | :--- |
 | **Chart Viewport & Lifecycle** | [docs/CHART_ENGINE.md](./CHART_ENGINE.md) | `src/pages/trading/chart/` | `ChartPanel.tsx`, `chartConfig.ts`, `chartFraming.ts` |
 | **Drawing Tools & Chart Plugins** | [docs/DRAWINGS_AND_PLUGINS.md](./DRAWINGS_AND_PLUGINS.md) | `src/lib/chart-plugins/` | `drawing-tools/manager.ts`, `heatmap/`, `footprint/` |
-| **Technical Indicators & Pine Script** | [docs/INDICATORS.md](./INDICATORS.md) | `src/lib/indicators/`, `src/lib/pinescript/`, `src/pages/trading/bottom-indicators/` | `src/lib/indicators/index.ts`, `parser.ts`, `BottomIndicatorsPanel.tsx` |
+| **Technical Indicators & Pine Script** | [docs/INDICATORS.md](./INDICATORS.md) | `src/lib/indicators/`, `src/lib/pinescript/`, `src/pages/trading/bottom-indicators/`, `src/pages/trading/` | `useIndicators.ts`, `useIndicatorsBuiltins.ts`, `useIndicatorsPineApply.ts`, `pineWorker.ts`, `preloaded/`, `BottomIndicatorsPanel.tsx` |
 | **Paper Trading, Orders & Dialogs** | [docs/TRADING_ENGINE.md](./TRADING_ENGINE.md) | `src/services/demo/engine/`, `src/pages/trading/order-panel/`, `src/components/trading-dialogs/` | `engine/orders.ts`, `OrderPanel.tsx`, `useTradingActions.ts` |
 | **Market Data, Repository & Feeds** | [docs/DATA_LAYER.md](./DATA_LAYER.md) | `src/services/market-data/`, `src/services/demo/binance/`, `src/services/queries/`, `src/services/stores/` | `candleRepository.ts`, `useTradingStore.ts`, `MarketDataBridge.tsx` |
 | **UI Layout, Toolbar, Panels & Theme** | [docs/UI_AND_STYLING.md](./UI_AND_STYLING.md) | `src/pages/trading-page/`, `src/pages/trading/`, `src/styles/`, `src/components/mobile-trading/` | `TradingPage.tsx`, `ChartToolbar.tsx`, `global.css` |
@@ -57,7 +57,7 @@ Project Quant is a high-performance in-browser quantitative trading terminal bui
 ├────────────────────────────────────────────────────────────────────────┤
 │ Calculation & Execution Layer                                          │
 │  ├── src/lib/indicators ── Pure math: SMA, EMA, RSI, MACD, BOLL, ATR   │
-│  ├── src/lib/pinescript ── Parser, evaluator VM, forecast engine & {/} templates │
+│  ├── src/lib/pinescript ── Parser, evaluator VM, preloaded scripts & {/} templates │
 │  ├── src/lib/chart-plugins ─ Drawing tools, footprint, heatmap, pine primitive │
 │  ├── src/services/demo/engine ─ In-memory matching engine, margin/PnL  │
 

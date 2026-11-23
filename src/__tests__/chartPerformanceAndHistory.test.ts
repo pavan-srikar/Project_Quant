@@ -669,4 +669,22 @@ describe("Chart Performance & History Preserving Tests", () => {
     expect(setVisibleLogicalRangeSpy).toHaveBeenCalledWith({ from: 0, to: 3 });
     expect(applyOptionsSpy).toHaveBeenCalledWith({ barSpacing: 12, rightOffset: 0 });
   });
+
+  it("frameLatestCandles and frameHistoricalViewport turn off autoScale when keepAutoScale is false", async () => {
+    const applyOptionsSpy = vi.fn();
+    const mockChart: any = {
+      timeScale: () => ({
+        setVisibleLogicalRange: vi.fn(),
+        applyOptions: vi.fn(),
+      }),
+      priceScale: () => ({ applyOptions: applyOptionsSpy }),
+    };
+
+    frameLatestCandles(mockChart, 100, false);
+    expect(applyOptionsSpy).toHaveBeenCalledWith({ autoScale: true });
+
+    // Wait for requestAnimationFrame to disable autoScale
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(applyOptionsSpy).toHaveBeenCalledWith({ autoScale: false });
+  });
 });

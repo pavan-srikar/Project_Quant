@@ -257,9 +257,6 @@ export async function evaluatePineScriptAsync(
 ): Promise<PineEvaluationResult> {
   const code = rawCode || parsed.rawCode;
   if (code) {
-    if (parsed.hasForecastPolyline || /method\s+forecast/i.test(code)) {
-      return evaluatePineScript(candles, parsed, customInputs);
-    }
     const tsRes = await runPineTS(candles, code, customInputs);
     if (
       tsRes &&
@@ -267,9 +264,17 @@ export async function evaluatePineScriptAsync(
         (tsRes.boxes && tsRes.boxes.length > 0) ||
         (tsRes.lines && tsRes.lines.length > 0) ||
         (tsRes.labels && tsRes.labels.length > 0) ||
-        (tsRes.polylines && tsRes.polylines.length > 0))
+        (tsRes.polylines && tsRes.polylines.length > 0) ||
+        (tsRes.tables && tsRes.tables.length > 0))
     ) {
       return tsRes;
+    }
+    if (typeof window !== "undefined" && typeof Worker !== "undefined") {
+      await new Promise<void>((r) => setTimeout(r, 0));
+      if (parsed.hasForecastPolyline || parsed.isLiquiditySwings || parsed.isLiquiditySweeps || parsed.plots.length <= 4) {
+        return evaluatePineScript(candles, parsed, customInputs);
+      }
+      return { plots: [], hlines: [], error: "Complex indicator evaluation timed out in worker" };
     }
   }
   return evaluatePineScript(candles, parsed, customInputs);

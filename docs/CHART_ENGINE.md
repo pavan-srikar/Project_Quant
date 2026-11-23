@@ -73,6 +73,11 @@ Lightweight Charts throws an unrecoverable exception if timestamps are not stric
 - All timestamps are converted to integer seconds: `Math.floor(ms / 1000)`.
 - `useChartDataPipeline.ts` deduplicates bars and sorts ascending before passing to `series.setData()`.
 
+### Fast & Smooth Cross-Instrument Switching (`useChartViewportController.ts` & `ChartPanel.tsx`)
+- **Single-Batch Load Invariant**: Initial candle queries request at most 1,000 bars (`candleLimit = 1_000`). Because Binance limits single responses to 1,000 klines, this resolves in a single round-trip HTTP request (~120ms) instead of sequential multi-batch fetches, accelerating symbol switching by 3x. Continuous pagination in `chartHistoryLoader.ts` streams deeper history on demand.
+- **Debounced Background Prefetching**: Prefetching secondary timeframes is debounced with a 1,500ms cooldown so the active chart has exclusive network bandwidth during coin switches, avoiding concurrent connection flooding and Binance HTTP 429 rate limits.
+- **Visual Transition Skeleton**: While `chartData.length === 0` during symbol transition, `ChartPanel.tsx` displays a sleek, non-intrusive backdrop loading indicator (`Loading <Symbol>...`) preventing blank void flashes.
+
 ---
 
 ## 4. Viewport Framing Mathematics (`chartFraming.ts`)
@@ -94,6 +99,8 @@ export function frameLatestCandles(
 }
 ```
 A second pass runs on `requestAnimationFrame` to ensure correct framing after the browser DOM layout pass.
+When switching instruments (`selectedSymbol`), `autoScale: true` is momentarily triggered to fit the price range of the new instrument (e.g. from Bitcoin's $60k+ to Solana's $72), and then locked to `autoScale: false` on requestAnimationFrame unless the user has explicitly enabled `autoScale` in chart preferences.
+When loading older historical candles (going back in time via continuous pagination), the chart's price scale remains completely untouched and never automatically turns on `autoScale: true`, ensuring auto-scale ("fits data to screen") remains strictly off by default unless manually enabled by the user in the context menu.
 When switching timeframes on the *same symbol* (whether viewing live edge candles or historical bars), the visible Y-axis price range (e.g. 56k to 100k set by user drag/adjustment) is preserved using `getChartPriceRange()` and restored via `setChartPriceRange()`. Automatic re-scaling (`autoScale: true`) is avoided so the price range remains consistent regardless of the timeframe switch (4H -> 1H, 4H -> 30m, etc.), matching TradingView behavior.
 
 ### Timeframe Switching & Historical Viewport Pinning Architecture
@@ -203,6 +210,12 @@ When switching timeframes on the same symbol (e.g. 4H → 1H, 4H → 30m), Tradi
 5. **High-Timeframe Multiplier-Safe Live Edge Detection**:
    - On `1d` charts, normal mouse wheel zoom shifts scroll position by -3 to -10 bars without leaving the current market view.
    - Live edge detection verifies whether the latest bar (`totalBars - 1`) is within the visible viewport bounds or within 30 bars of the right edge, preventing accidental historical anchoring.
+6. **Infinite Re-render Loop & CPU Glitch Elimination (`useRealtimeEffects.ts` & `ChartPanel.tsx`)**:
+   - `makeRtCtx` Reference Stability: The `refs` wrapper object is excluded from the `useCallback` dependency array (`[colors, timeframe, selectedSymbol, queryClient]`) because all ref members are stable `useRef` instances, preventing function reference changes on every render.
+   - Gated `setLegend`: `setLegend(legendFromSeries(...))` is strictly gated inside the `if (isNewChart || lastSetDataKeyRef.current !== chartDataKey)` branch, preventing state-update cascades that cause `Maximum update depth exceeded` and canvas freezing.
+7. **Clean Instrument Switch & Price Scale Rescaling (`useRealtimeEffects.ts` & `useIndicators.ts`)**:
+   - Switching instruments (e.g. BTC to SOL) purges stale Bid/Ask lines and cleans up attached indicator overlay series.
+   - When indicator lines are removed, `useIndicators.ts` triggers `chart.priceScale("right").applyOptions({ autoScale: true })` and `chart.timeScale().applyOptions({})`, preventing BTC's vertical scale from squishing lower-priced coins into a flat line.
 
 ---
 

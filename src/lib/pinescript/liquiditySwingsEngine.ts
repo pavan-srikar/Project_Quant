@@ -51,19 +51,11 @@ export function computeLiquiditySwings(
   const filterOptions = params.filterOptions || "Count";
   const filterValue = params.filterValue ?? 0;
   const showTop = params.showTop !== false;
-  const topCss = params.topCss && params.topCss !== "#f23645" && params.topCss !== "color.red"
-    ? params.topCss
-    : "#7c4dff";
-  const topAreaCss = params.topAreaCss && !params.topAreaCss.includes("242")
-    ? params.topAreaCss
-    : "rgba(124, 77, 255, 0.25)";
+  const topCss = params.topCss || "#f23645";
+  const topAreaCss = params.topAreaCss || "rgba(242, 54, 69, 0.20)";
   const showBtm = params.showBtm !== false;
-  const btmCss = params.btmCss && params.btmCss !== "#089981" && params.btmCss !== "#00897b"
-    ? params.btmCss
-    : "#00b4d8";
-  const btmAreaCss = params.btmAreaCss && !params.btmAreaCss.includes("137")
-    ? params.btmAreaCss
-    : "rgba(0, 180, 216, 0.25)";
+  const btmCss = params.btmCss || "#089981";
+  const btmAreaCss = params.btmAreaCss || "rgba(8, 153, 129, 0.20)";
 
   const boxes: PineBox[] = [];
   const lines: PineLine[] = [];
@@ -145,6 +137,7 @@ export function computeLiquiditySwings(
               text,
               color: topCss,
               style: "down",
+              size: "tiny",
             });
           }
         }
@@ -219,6 +212,7 @@ export function computeLiquiditySwings(
               text: btmText,
               color: btmCss,
               style: "up",
+              size: "tiny",
             });
           }
         }

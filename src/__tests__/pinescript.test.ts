@@ -287,9 +287,10 @@ fill(init_plot, price_plot,
     expect(areaPoly).toBeDefined();
     expect(areaPoly?.fillColor).toBeDefined();
 
-    // Fill between plots is suppressed when one plot has display = display.none (Pine Script spec)
+    // Price-to-reference signalArea fill is generated for authentic TradingView rendering
     expect(res.fills).toBeDefined();
-    expect(res.fills?.length).toBe(0);
+    expect(res.fills?.length).toBeGreaterThan(0);
+    expect(res.fills?.[0]?.id).toBe("fill_price_ref");
   });
 
 
@@ -739,5 +740,39 @@ plot(sma(close, prd))
     expect(res?.labels).toBeDefined();
     expect(res?.labels?.length).toBeGreaterThan(0);
     expect(res?.labels?.[0]?.text).toContain("TEST\nLABEL");
+  });
+
+  it("pre-loads 4 user-provided custom indicators into storage and samples", async () => {
+    const { getCustomPineIndicators } = await import("../lib/pinescript/storage");
+    const { PINE_SAMPLES } = await import("../lib/pinescript/samples");
+
+    const custom = getCustomPineIndicators();
+    expect(custom.length).toBeGreaterThanOrEqual(4);
+
+    const macdForecast = custom.find((c: any) => c.id === "pine_lux_macd_forecast");
+    expect(macdForecast).toBeDefined();
+    expect(macdForecast?.name).toContain("MACD Based Price Forecasting");
+    expect(macdForecast?.overlay).toBe(true);
+
+    const sweeps = custom.find((c: any) => c.id === "pine_lux_liquidity_sweeps");
+    expect(sweeps).toBeDefined();
+    expect(sweeps?.name).toContain("Liquidity Sweeps");
+    expect(sweeps?.overlay).toBe(true);
+
+    const swings = custom.find((c: any) => c.id === "pine_lux_liquidity_swings");
+    expect(swings).toBeDefined();
+    expect(swings?.name).toContain("Liquidity Swings");
+    expect(swings?.overlay).toBe(true);
+
+    const alphaTrend = custom.find((c: any) => c.id === "pine_alphatrend");
+    expect(alphaTrend).toBeDefined();
+    expect(alphaTrend?.name).toBe("AlphaTrend");
+    expect(alphaTrend?.overlay).toBe(true);
+
+    // Verify PINE_SAMPLES also includes all 4
+    expect(PINE_SAMPLES.some((s: any) => s.name.includes("MACD Based Price Forecasting"))).toBe(true);
+    expect(PINE_SAMPLES.some((s: any) => s.name.includes("Liquidity Sweeps"))).toBe(true);
+    expect(PINE_SAMPLES.some((s: any) => s.name.includes("Liquidity Swings"))).toBe(true);
+    expect(PINE_SAMPLES.some((s: any) => s.name === "AlphaTrend")).toBe(true);
   });
 });

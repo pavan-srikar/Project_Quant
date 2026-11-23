@@ -1,6 +1,6 @@
 import type { useQueryClient } from "@tanstack/react-query";
 import type { CandlestickData, IPriceLine, ISeriesApi, Time } from "lightweight-charts";
-import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
+import { useEffect, useRef, type Dispatch, type RefObject, type SetStateAction } from "react";
 import type { useChartPreferences } from "../../../hooks/useChartPreferences.ts";
 import type { Order, Position, Symbol } from "../../../services/schemas.ts";
 import { useTradingStore } from "../../../services/stores/useTradingStore.ts";
@@ -10,6 +10,7 @@ import {
   getChartPriceRange, setChartPriceRange, type ChartTimeScaleState,
 } from "./chartFraming.ts";
 import { addOrderOverlay, addPositionOverlay, clearPriceLines } from "./chartOverlays.ts";
+import { removePriceLineSafe } from "./bidAskLines.ts";
 import {
   applyBidAskLines, applyServerCandle, applyTick,
   reapplyLive, replayBufferedLive, scheduleStaleRefetch,
@@ -50,20 +51,11 @@ export interface RealtimeEffectsParams {
   preservedPriceRangeRef?: RefObject<{ symbol: string; min: number; max: number } | null>;
   preservedTimeScaleRef?: RefObject<{ symbol: string; state: ChartTimeScaleState } | null>;
   setLegend: Dispatch<SetStateAction<OhlcvLegend | null>>;
-  liveCandle?: LiveCandleData;
-  tick?: TickData;
-  drawingsRef: RefObject<DrawingLine[]>;
-  pipDigits: number;
-  isReplaying?: boolean;
-  queryClient: ReturnType<typeof useQueryClient>;
-  chartPrefs: ReturnType<typeof useChartPreferences>;
-  priceLineRef: RefObject<IPriceLine[]>;
-  slTpLinesRef: RefObject<any>;
-  positions: Position[];
-  orders: Order[];
-  colors: ChartColors;
-  symbolInfo?: Symbol;
-  replayTradeEvents?: ReplayTradeEvent[];
+  liveCandle?: LiveCandleData; tick?: TickData; drawingsRef: RefObject<DrawingLine[]>;
+  pipDigits: number; isReplaying?: boolean; queryClient: ReturnType<typeof useQueryClient>;
+  chartPrefs: ReturnType<typeof useChartPreferences>; priceLineRef: RefObject<IPriceLine[]>;
+  slTpLinesRef: RefObject<any>; positions: Position[]; orders: Order[]; colors: ChartColors;
+  symbolInfo?: Symbol; replayTradeEvents?: ReplayTradeEvent[];
   setCountdown: Dispatch<SetStateAction<string>>;
 }
 
@@ -79,6 +71,8 @@ export function useRealtimeEffects(params: RealtimeEffectsParams) {
     slTpLinesRef, positions, orders, colors, symbolInfo,
     replayTradeEvents, setCountdown,
   } = params;
+
+  const lastSetDataKeyRef = useRef<string>("");
 
   // 1. Keep latest live candle in a ref (avoids stale closure in setData effect)
   useEffect(() => {
@@ -124,21 +118,31 @@ export function useRealtimeEffects(params: RealtimeEffectsParams) {
     const refPr = preservedPriceRangeRef?.current?.symbol === selectedSymbol ? preservedPriceRangeRef.current : null;
     const currentChartPr = (isTfChange || isAnchorMatch) ? getChartPriceRange(chartRef.current, series) : null;
     const preservedPriceRange = (isTfChange || isAnchorMatch) ? (anchorPr || refPr || currentChartPr || null) : null;
-    if (preservedPriceRange && preservedPriceRangeRef) {
-      preservedPriceRangeRef.current = { symbol: selectedSymbol, ...preservedPriceRange };
-    }
+    if (preservedPriceRange && preservedPriceRangeRef) preservedPriceRangeRef.current = { symbol: selectedSymbol, ...preservedPriceRange };
     const anchorTs = isAnchorMatch ? anchor?.timeScaleState : null;
     const refTs = preservedTimeScaleRef?.current?.symbol === selectedSymbol ? preservedTimeScaleRef.current.state : null;
     const preservedTimeScale = (isTfChange || isAnchorMatch) ? (anchorTs || refTs || null) : null;
-    if (preservedTimeScale && preservedTimeScaleRef) {
-      preservedTimeScaleRef.current = { symbol: selectedSymbol, state: preservedTimeScale };
-    }
+    if (preservedTimeScale && preservedTimeScaleRef) preservedTimeScaleRef.current = { symbol: selectedSymbol, state: preservedTimeScale };
 
     if (isChangingTfRef) isChangingTfRef.current = true;
+    if (isNewChart) {
+      removePriceLineSafe(ctx.bidLine, series);
+      removePriceLineSafe(ctx.askLine, series);
+      removePriceLineSafe(ctx.midLine, series);
+    }
 
-    // Lock price scale to manual BEFORE setting data so Lightweight Charts never auto-scales
+    // Lock price scale to manual when preserved, or momentary auto-fit when switching instruments
     if (preservedPriceRange && preservedPriceRange.max > preservedPriceRange.min) {
       setChartPriceRange(chartRef.current, preservedPriceRange, series);
+    } else if (isNewChart) {
+      try {
+        chartRef.current?.priceScale("right").applyOptions({ autoScale: true });
+        if (!chartPrefs.autoScale) {
+          requestAnimationFrame(() => {
+            try { chartRef.current?.priceScale("right").applyOptions({ autoScale: false }); } catch {}
+          });
+        }
+      } catch {}
     }
 
     // Pre-apply preserved barSpacing and rightOffset BEFORE setting data
@@ -152,12 +156,18 @@ export function useRealtimeEffects(params: RealtimeEffectsParams) {
       } catch {}
     }
 
-    series.setData(chartData);
-    volumeSeriesRef.current?.setData(volumeData);
+    const firstTime = (chartData[0] as any)?.time ?? 0;
+    const lastTime = (chartData[chartData.length - 1] as any)?.time ?? 0;
+    const chartDataKey = `${loadKey}:${chartData.length}:${firstTime}:${lastTime}`;
+    if (isNewChart || lastSetDataKeyRef.current !== chartDataKey) {
+      series.setData(chartData);
+      volumeSeriesRef.current?.setData(volumeData);
+      lastSetDataKeyRef.current = chartDataKey;
+      setLegend(legendFromSeries(chartData, volumeData));
+    }
     lastCandleRef.current = chartData[chartData.length - 1] ?? null;
     lastLoadKeyRef.current = loadKey;
     lastLoadedSeriesRef.current = series;
-    setLegend(legendFromSeries(chartData, volumeData));
     lastRenderedBarCountRef.current = chartData.length;
 
     if (!shouldReframe) {
@@ -215,12 +225,12 @@ export function useRealtimeEffects(params: RealtimeEffectsParams) {
 
     return scheduleStaleRefetch(chartData, ctx);
   }, [
-    chartData, volumeData, selectedSymbol, timeframe, makeRtCtx,
-    candleSeriesRef, volumeSeriesRef, lastLoadKeyRef, lastLoadedSeriesRef,
-    lastCandleRef, latestLiveCandleRef, setLegend, initialLoadCompleteRef,
-    lastRenderedBarCountRef, hasUserPannedOrZoomedRef, chartRef, liveCandleTsRef,
-    isChangingTfRef, isScrolledBackRef, needsTfReframeRef,
-    pendingHistoricalTargetRef, lastVisibleTimeRangeRef, preservedPriceRangeRef, preservedTimeScaleRef, chartPrefs.autoScale,
+    chartData, volumeData, selectedSymbol, timeframe, makeRtCtx, candleSeriesRef,
+    volumeSeriesRef, lastLoadKeyRef, lastLoadedSeriesRef, lastCandleRef, latestLiveCandleRef,
+    setLegend, initialLoadCompleteRef, lastRenderedBarCountRef, hasUserPannedOrZoomedRef,
+    chartRef, liveCandleTsRef, isChangingTfRef, isScrolledBackRef, needsTfReframeRef,
+    pendingHistoricalTargetRef, lastVisibleTimeRangeRef, preservedPriceRangeRef,
+    preservedTimeScaleRef, chartPrefs.autoScale,
   ]);
 
   // 3. Real-time candle updates: server-aggregated CandleUpdate
@@ -234,8 +244,9 @@ export function useRealtimeEffects(params: RealtimeEffectsParams) {
   useEffect(() => {
     const series = candleSeriesRef.current;
     if (!series || !tick) return;
+    if (lastLoadKeyRef.current !== `${selectedSymbol}:${timeframe}`) return;
     applyTick(tick, makeRtCtx(series));
-  }, [tick, makeRtCtx, candleSeriesRef]);
+  }, [tick, selectedSymbol, timeframe, makeRtCtx, candleSeriesRef, lastLoadKeyRef]);
 
   // 5. Line-cross price alerts (client-side, in-session)
   useLineCrossAlerts(tick, drawingsRef, selectedSymbol, pipDigits);
@@ -247,34 +258,28 @@ export function useRealtimeEffects(params: RealtimeEffectsParams) {
   useEffect(() => {
     const series = candleSeriesRef.current;
     if (!series) return;
+    const lastBar = chartData[chartData.length - 1];
+    const lastClose = Number(lastBar?.close) || 0;
+    const isStale = Boolean(tick && lastClose > 0 && Math.abs(tick.bid - lastClose) / lastClose > 0.5);
     applyBidAskLines(
-      tick,
+      isStale ? undefined : tick,
       { showBidLine: chartPrefs.showBidLine, showAskLine: chartPrefs.showAskLine },
       makeRtCtx(series),
     );
-  }, [tick, chartPrefs.showBidLine, chartPrefs.showAskLine, makeRtCtx, candleSeriesRef]);
+  }, [tick, chartPrefs.showBidLine, chartPrefs.showAskLine, makeRtCtx, candleSeriesRef, chartData]);
 
   // 8. Position/order overlays
   useEffect(() => {
     const series = candleSeriesRef.current;
     if (!series) return;
-    const lines = priceLineRef.current;
-    clearPriceLines(series, lines);
+    clearPriceLines(series, priceLineRef.current);
     priceLineRef.current = [];
     slTpLinesRef.current.clear();
     if (!chartPrefs.overlayPositionsOnChart) return;
 
-    const opts: OverlayOpts = {
-      symbol: selectedSymbol,
-      colors,
-      contractSize: symbolInfo?.contractSize || 100000,
-    };
-    for (const pos of positions) {
-      addPositionOverlay(series, pos, opts, priceLineRef.current, slTpLinesRef.current);
-    }
-    for (const ord of orders) {
-      addOrderOverlay(series, ord, selectedSymbol, colors.orderLine, priceLineRef.current);
-    }
+    const opts: OverlayOpts = { symbol: selectedSymbol, colors, contractSize: symbolInfo?.contractSize || 100000 };
+    for (const pos of positions) addPositionOverlay(series, pos, opts, priceLineRef.current, slTpLinesRef.current);
+    for (const ord of orders) addOrderOverlay(series, ord, selectedSymbol, colors.orderLine, priceLineRef.current);
   }, [
     positions, orders, selectedSymbol, chartData, symbolInfo, colors,
     chartPrefs.overlayPositionsOnChart, candleSeriesRef, priceLineRef, slTpLinesRef,

@@ -10,3 +10,4 @@ export * from "./pineVM";
 export * from "./pineMigrator";
 export * from "./pineTSRunner";
 export * from "./pineTSExtractors";
+export * from "./preloaded";

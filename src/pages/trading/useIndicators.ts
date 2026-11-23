@@ -1,18 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import type { IChartApi, ISeriesApi, CandlestickData, Time } from "lightweight-charts";
-import { LineStyle, LineType } from "lightweight-charts";
-import {
-  sma, ema, bollingerBands, vwap,
-  INDICATOR_REGISTRY, type IndicatorType,
-} from "../../lib/indicators.ts";
+import { INDICATOR_REGISTRY, type IndicatorType } from "../../lib/indicators.ts";
 import {
   getCustomPineIndicators, parsePineScript,
   evaluatePineScriptAsync, CUSTOM_PINE_UPDATED_EVENT,
 } from "../../lib/pinescript";
 import type { PineTable } from "../../lib/pinescript/types.ts";
-import { PineRendererPrimitive } from "../../lib/chart-plugins/pine-primitive";
+import type { PineRendererPrimitive } from "../../lib/chart-plugins/pine-primitive";
 import { toIndicatorCandles } from "./utils.ts";
-import { useIndicatorSettings, type IndicatorSettings } from "../../hooks/useIndicatorSettings.ts";
+import { useIndicatorSettings } from "../../hooks/useIndicatorSettings.ts";
+import { renderBuiltinOverlays } from "./useIndicatorsBuiltins.ts";
+import { applyPineEvaluationResult } from "./useIndicatorsPineApply.ts";
 
 export function useIndicators(
   chartRef: React.RefObject<IChartApi | null>,
@@ -20,15 +18,29 @@ export function useIndicators(
   chartData: CandlestickData<Time>[],
   activeIndicators: IndicatorType[],
   isDark: boolean,
+  selectedSymbol?: string,
+  chartEpoch?: number,
 ): { pineTables: PineTable[] } {
   const indicatorSeriesRef = useRef<Map<string, ISeriesApi<"Line">>>(new Map());
   const lastSeriesDataKeyRef = useRef<Map<string, string>>(new Map());
   const pinePrimitivesRef = useRef<Map<string, PineRendererPrimitive>>(new Map());
   const pineCacheRef = useRef<Map<string, { key: string; result: any }>>(new Map());
+  const lastChartRef = useRef<IChartApi | null>(null);
+  const lastCandleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const lastSymbolRef = useRef<string>("");
+  const lastChartEpochRef = useRef<number | undefined>(chartEpoch);
   const hadForecastRef = useRef(false);
+  const lastBarCountRef = useRef(0);
+  const lastBarTimeRef = useRef<number>(0);
+  const lastFirstCloseRef = useRef<number>(0);
+  const lastFirstTimeRef = useRef<number>(0);
   const { settings } = useIndicatorSettings();
   const [pineRevision, setPineRevision] = useState(0);
   const [pineTables, setPineTables] = useState<PineTable[]>([]);
+  const activeEvalTokenRef = useRef<string>("");
+  const isEvaluatingRef = useRef(false);
+  const hasPendingRunRef = useRef(false);
+  const latestSchedulePineRunRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     const onPineUpdated = () => setPineRevision((v) => v + 1);
@@ -39,42 +51,105 @@ export function useIndicators(
   // Cleanup all series and primitives on unmount
   useEffect(() => {
     return () => {
-      for (const [, s] of indicatorSeriesRef.current) {
-        try { chartRef.current?.removeSeries(s); } catch {}
-      }
+      for (const [, s] of indicatorSeriesRef.current) { try { chartRef.current?.removeSeries(s); } catch {} }
       indicatorSeriesRef.current.clear();
-      for (const [, p] of pinePrimitivesRef.current) {
-        try { candleSeriesRef.current?.detachPrimitive(p); } catch {}
-      }
+      for (const [, p] of pinePrimitivesRef.current) { try { candleSeriesRef.current?.detachPrimitive(p); } catch {} }
       pinePrimitivesRef.current.clear();
       pineCacheRef.current.clear();
       setPineTables([]);
+      activeEvalTokenRef.current = "";
     };
   }, [chartRef, candleSeriesRef]);
 
   useEffect(() => {
-    if (!chartRef.current || !candleSeriesRef.current || chartData.length === 0) return;
-
-    let cancelled = false;
     const chart = chartRef.current, candleSeries = candleSeriesRef.current;
+    if (!chart || !candleSeries || chartData.length === 0) return;
+
+    const isDifferentSymbol = Boolean(selectedSymbol && lastSymbolRef.current && selectedSymbol !== lastSymbolRef.current);
+    const isNewChart =
+      lastChartRef.current !== chart ||
+      lastCandleSeriesRef.current !== candleSeries ||
+      (chartEpoch !== undefined && lastChartEpochRef.current !== chartEpoch) ||
+      isDifferentSymbol;
+    lastChartRef.current = chart;
+    lastCandleSeriesRef.current = candleSeries;
+    if (selectedSymbol) lastSymbolRef.current = selectedSymbol;
+    if (chartEpoch !== undefined) lastChartEpochRef.current = chartEpoch;
+
+    if (isNewChart) {
+      for (const [, s] of indicatorSeriesRef.current) {
+        try {
+          s.setData([]);
+          chart.removeSeries(s);
+        } catch {}
+      }
+      indicatorSeriesRef.current.clear();
+      lastSeriesDataKeyRef.current.clear();
+
+      for (const [, p] of pinePrimitivesRef.current) {
+        try {
+          p.updateData([], [], [], [], []);
+          candleSeries.detachPrimitive(p);
+        } catch {}
+      }
+      pinePrimitivesRef.current.clear();
+      pineCacheRef.current.clear();
+      activeEvalTokenRef.current = "";
+      try { chart.priceScale("right").applyOptions({ autoScale: true }); } catch {}
+      try { chart.timeScale().applyOptions({}); } catch {}
+    }
+
+    const firstBar = chartData[0];
+    const firstClose = Number(firstBar?.close) || 0;
+    const firstTime = (firstBar as any)?.time ? Number((firstBar as any).time) : 0;
+    const lastBar = chartData[chartData.length - 1];
+    const lastTime = (lastBar as any)?.time ? Number((lastBar as any).time) : 0;
+    const isSameInstrument =
+      !isNewChart &&
+      lastFirstTimeRef.current === firstTime &&
+      lastFirstCloseRef.current === firstClose;
+    const isLiveTick =
+      isSameInstrument &&
+      lastBarCountRef.current === chartData.length &&
+      lastBarTimeRef.current === lastTime &&
+      lastBarCountRef.current > 0;
+    lastBarCountRef.current = chartData.length;
+    lastBarTimeRef.current = lastTime;
+    lastFirstCloseRef.current = firstClose;
+    lastFirstTimeRef.current = firstTime;
+    const candleKey = `${firstTime}_${firstClose}_${chartData.length}_${lastTime}`;
+
     const indCandles = toIndicatorCandles(chartData);
     const customScripts = getCustomPineIndicators();
     const activeKeys = new Set<string>();
-    const activePrimKeys = new Set<string>();
 
-    const setOrAdd = (key: string, values: { time: number; value: number }[], opts: any, dataKey?: string) => {
+    const setOrAdd = (
+      key: string,
+      values: { time: number; value: number }[],
+      opts: any,
+      dataKey?: string,
+    ) => {
+      const curChart = chartRef.current;
+      if (!curChart) return;
       let s = indicatorSeriesRef.current.get(key);
       const prevKey = lastSeriesDataKeyRef.current.get(key);
+      const lastPoint = values[values.length - 1];
       if (s) {
-        if (!dataKey || prevKey !== dataKey) {
-          s.setData(values.map((p) => ({ time: p.time as Time, value: p.value })));
-          if (dataKey) lastSeriesDataKeyRef.current.set(key, dataKey);
+        if (isLiveTick && lastPoint) {
+          try { s.update({ time: lastPoint.time as Time, value: lastPoint.value }); } catch {}
+        } else if (!dataKey || prevKey !== dataKey) {
+          try {
+            s.setData(values.map((p) => ({ time: p.time as Time, value: p.value })));
+            if (dataKey) lastSeriesDataKeyRef.current.set(key, dataKey);
+          } catch {}
         }
       } else {
-        s = chart.addLineSeries(opts);
-        s.setData(values.map((p) => ({ time: p.time as Time, value: p.value })));
-        indicatorSeriesRef.current.set(key, s);
-        if (dataKey) lastSeriesDataKeyRef.current.set(key, dataKey);
+        try {
+          s = curChart.addLineSeries(opts);
+          s.setData(values.map((p) => ({ time: p.time as Time, value: p.value })));
+          indicatorSeriesRef.current.set(key, s);
+          if (dataKey) lastSeriesDataKeyRef.current.set(key, dataKey);
+        } catch {}
       }
       activeKeys.add(key);
     };
@@ -95,168 +170,124 @@ export function useIndicators(
       try { chart.timeScale().applyOptions({ rightOffset: 6 }); } catch {}
     }
 
-    for (const type of pineIndicators) {
-      const script = customScripts.find((cs) => cs.id === type);
-      if (!script) continue;
-      const curSettings = settings[type] as any;
-      if (curSettings?.visible === false) continue;
-      const isOverlay = script.overlay;
+    const evalToken = `${firstTime}_${firstClose}_${chartData.length}_${pineRevision}_${activeIndicators.join(",")}_${JSON.stringify(settings)}`;
 
-      const applyPine = async () => {
-        try {
-          const parsed = parsePineScript(script.code);
-          const mergedInputs = { ...(script.inputs || {}), ...(curSettings?.pineInputs || {}) };
-          const cacheKey = `${type}_${script.code.length}_${JSON.stringify(mergedInputs)}_${indCandles.length}_${indCandles[indCandles.length - 1]?.time ?? 0}`;
-          let evalRes = pineCacheRef.current.get(type)?.key === cacheKey ? pineCacheRef.current.get(type)!.result : null;
-          if (!evalRes) {
-            evalRes = await evaluatePineScriptAsync(indCandles, parsed, mergedInputs, script.code);
-            if (cancelled) return;
-            pineCacheRef.current.set(type, { key: cacheKey, result: evalRes });
-          }
-          if (cancelled) return;
+    const runAllPine = async () => {
+      if (isEvaluatingRef.current) return;
+      isEvaluatingRef.current = true;
+      try {
+        const curChart = chartRef.current;
+        const curSeries = candleSeriesRef.current;
+        if (!curChart || !curSeries) return;
 
-          if (isOverlay) {
-            evalRes.plots.forEach((plot: any) => {
-              if (plot.displayNone || plot.forceOverlay === false) return;
-              const isRef = /reference/i.test(plot.title) || /init_value/i.test(plot.id) || /init_value/i.test(plot.title);
-              const plotVis = curSettings?.plotVisibility?.[plot.id] ?? curSettings?.plotVisibility?.[plot.title];
-              if (plotVis === false) return;
+        const tablesAcc: PineTable[] = [];
 
-              const pColor = curSettings?.plotColors?.[plot.id] ?? curSettings?.plotColors?.[plot.title] ?? (isRef ? "#787b86" : plot.color);
-              const pWidth = curSettings?.plotLineWidths?.[plot.id] ?? curSettings?.plotLineWidths?.[plot.title] ?? (isRef ? 1 : ((plot.lineWidth as any) || 1.5));
-              const pStyle = curSettings?.plotStyles?.[plot.id] ?? curSettings?.plotStyles?.[plot.title];
-              const lineStyle = pStyle === "dashed" ? LineStyle.Dashed : pStyle === "dotted" ? LineStyle.Dotted : pStyle === "solid" ? LineStyle.Solid : (isRef ? LineStyle.Dashed : LineStyle.Solid);
+        for (const type of pineIndicators) {
+          if (activeEvalTokenRef.current !== evalToken) return;
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+          if (activeEvalTokenRef.current !== evalToken) return;
+          const script = customScripts.find((cs) => cs.id === type);
+          if (!script) continue;
+          const curSettings = settings[type] as any;
+          if (curSettings?.visible === false) continue;
+          const isOverlay = script.overlay;
 
-              setOrAdd(`${type}_${plot.id}`, plot.values, {
-                color: pColor, lineWidth: pWidth, lineStyle,
-                lineType: isRef ? LineType.WithSteps : LineType.Simple,
-                priceScaleId: "right",
-                priceLineVisible: Boolean(curSettings?.labelsOnPriceScale),
-                lastValueVisible: (curSettings?.labelsOnPriceScale !== false) && !isRef,
-              }, `${cacheKey}_${plot.id}`);
-            });
-          }
-
-          const targetBoxes = isOverlay ? evalRes.boxes : evalRes.boxes?.filter((b: any) => b.forceOverlay);
-          const targetLines = isOverlay ? evalRes.lines : evalRes.lines?.filter((l: any) => l.forceOverlay);
-          const targetLabels = isOverlay ? evalRes.labels : evalRes.labels?.filter((l: any) => l.forceOverlay);
-          const targetPolys = isOverlay ? evalRes.polylines : [];
-          const targetFills = isOverlay ? evalRes.fills : [];
-
-          const hasPolys = Boolean(targetPolys?.length), hasFills = Boolean(targetFills?.length);
-          const hasBoxes = Boolean(targetBoxes?.length), hasLines = Boolean(targetLines?.length), hasLabels = Boolean(targetLabels?.length);
-          const showPolys = curSettings?.showPolylines !== false, showFills = curSettings?.showFills !== false;
-          const showBoxes = curSettings?.showBoxes !== false, showLines = curSettings?.showLines !== false, showLabels = curSettings?.showLabels !== false;
-
-          if ((hasPolys && showPolys) || (hasFills && showFills) || (hasBoxes && showBoxes) || (hasLines && showLines) || (hasLabels && showLabels)) {
-            let prim = pinePrimitivesRef.current.get(type);
-            if (!prim) {
-              prim = new PineRendererPrimitive();
-              candleSeries.attachPrimitive(prim);
-              pinePrimitivesRef.current.set(type, prim);
+          try {
+            const parsed = parsePineScript(script.code);
+            const mergedInputs = { ...(script.inputs || {}), ...(curSettings?.pineInputs || {}) };
+            const cacheKey = `${type}_${script.code.length}_${JSON.stringify(mergedInputs)}_${firstTime}_${firstClose}_${indCandles.length}_${indCandles[indCandles.length - 1]?.time ?? 0}`;
+            let evalRes = pineCacheRef.current.get(type)?.key === cacheKey ? pineCacheRef.current.get(type)!.result : null;
+            if (!evalRes) {
+              evalRes = await evaluatePineScriptAsync(indCandles, parsed, mergedInputs, script.code);
+              if (activeEvalTokenRef.current !== evalToken) return;
+              pineCacheRef.current.set(type, { key: cacheKey, result: evalRes });
             }
-            prim.updateData(
-              showPolys ? targetPolys : [],
-              showFills ? targetFills : [],
-              showBoxes ? targetBoxes : [],
-              showLines ? targetLines : [],
-              showLabels ? targetLabels : [],
-            );
-            activePrimKeys.add(type);
+            if (activeEvalTokenRef.current !== evalToken) return;
+            if (!pineIndicators.includes(type as any)) continue;
 
-            if (hasPolys && !hadForecastRef.current) {
-              hadForecastRef.current = true;
-              const ts = chart.timeScale();
-              const fcastBars = Math.min(80, Math.max(45, (evalRes.polylines?.[0]?.points?.length ?? 50) - 1));
-              ts.applyOptions({ rightOffset: fcastBars });
-              const curRange = ts.getVisibleLogicalRange();
-              const span = curRange ? (curRange.to - curRange.from) : 80;
-              if (!curRange || curRange.to < indCandles.length + 20) {
-                const newTo = indCandles.length + fcastBars;
-                ts.setVisibleLogicalRange({ from: Math.max(0, newTo - span), to: newTo });
-              }
-            }
-          }
-
-          if (evalRes.tables && evalRes.tables.length > 0) {
-            setPineTables((prev) => {
-              const other = prev.filter((t) => !t.id.startsWith(type));
-              const tagged = evalRes!.tables!.map((tbl: PineTable, i: number) => ({ ...tbl, id: `${type}_${tbl.id || i}` }));
-              const next = [...other, ...tagged];
-              if (prev.length === next.length && prev.every((p, i) => p.id === next[i]?.id && p.cells.length === next[i]?.cells.length)) {
-                return prev;
-              }
-              return next;
+            applyPineEvaluationResult({
+              type,
+              isOverlay,
+              curSettings,
+              cacheKey,
+              evalRes,
+              indCandles,
+              chart: curChart,
+              candleSeries: curSeries,
+              setOrAdd,
+              pinePrimitivesRef,
+              hadForecastRef,
+              tablesAcc,
             });
+          } catch (err) {
+            console.error("[useIndicators] Error evaluating Pine indicator:", type, err);
           }
-        } catch (err) {
-          console.error("[useIndicators] Error evaluating Pine indicator:", err);
         }
-      };
-      applyPine();
-    }
 
-    for (const type of builtinOverlayIndicators) {
-
-      const config = INDICATOR_REGISTRY.find((r) => r.type === type);
-      if (!config) continue;
-      const curSettings: Partial<IndicatorSettings> = settings[type] ?? {};
-      if (curSettings.visible === false) continue;
-      const lineColor = curSettings.color || config.color, lineWidth = (curSettings.lineWidth as any) || 1.5;
-
-      switch (type) {
-        case "SMA": {
-          const data = sma(indCandles, curSettings.period ?? config.defaultParams.period ?? 20);
-          setOrAdd("SMA", data, { color: lineColor, lineWidth, priceScaleId: "right", priceLineVisible: false, lastValueVisible: true });
-          break;
-        }
-        case "EMA": {
-          const slots = curSettings.emaSlots && curSettings.emaSlots.length > 0 ? curSettings.emaSlots : [{ enabled: true, period: curSettings.period ?? 20, color: lineColor }];
-          slots.forEach((slot, idx) => {
-            if (!slot.enabled || slot.period <= 0) return;
-            const data = ema(indCandles, slot.period);
-            setOrAdd(`EMA_${idx + 1}`, data, { color: slot.color || lineColor, lineWidth, priceScaleId: "right", priceLineVisible: false, lastValueVisible: true });
-          });
-          break;
-        }
-        case "BOLL": {
-          const data = bollingerBands(indCandles, curSettings.period ?? config.defaultParams.period ?? 20, curSettings.stdDev ?? config.defaultParams.stdDev ?? 2);
-          setOrAdd("BOLL-upper", data.upper, { color: curSettings.upperColor || lineColor + "80", lineWidth: 1, priceScaleId: "right", priceLineVisible: false, lastValueVisible: false });
-          setOrAdd("BOLL-mid", data.middle, { color: lineColor, lineWidth: 1, priceScaleId: "right", priceLineVisible: false, lastValueVisible: true });
-          setOrAdd("BOLL-lower", data.lower, { color: curSettings.lowerColor || lineColor + "80", lineWidth: 1, priceScaleId: "right", priceLineVisible: false, lastValueVisible: false });
-          break;
-        }
-        case "VWAP": {
-          const data = vwap(indCandles);
-          setOrAdd("VWAP", data, { color: lineColor, lineWidth, lineStyle: LineStyle.Dashed, priceScaleId: "right", priceLineVisible: false, lastValueVisible: true });
-          break;
+        if (activeEvalTokenRef.current !== evalToken) return;
+        setPineTables((prev) => (
+          prev.length === tablesAcc.length && prev.every((p, i) => p.id === tablesAcc[i]?.id && p.cells.length === tablesAcc[i]?.cells.length) ? prev : tablesAcc
+        ));
+      } finally {
+        isEvaluatingRef.current = false;
+        if (hasPendingRunRef.current) {
+          hasPendingRunRef.current = false;
+          latestSchedulePineRunRef.current();
         }
       }
+    };
+
+    const schedulePineRun = () => {
+      if (isEvaluatingRef.current) {
+        hasPendingRunRef.current = true;
+        return;
+      }
+      runAllPine();
+    };
+    latestSchedulePineRunRef.current = schedulePineRun;
+
+    if (!isLiveTick || activeEvalTokenRef.current !== evalToken) {
+      activeEvalTokenRef.current = evalToken;
+      schedulePineRun();
     }
 
-    // Prune inactive line series
+    renderBuiltinOverlays({ builtinOverlayIndicators, settings, indCandles, candleKey, setOrAdd });
+
+    // Prune inactive built-in and Pine line series
+    let didPruneSeries = false;
     for (const [k, s] of indicatorSeriesRef.current) {
-      if (!activeKeys.has(k)) {
+      const isInactive = k.startsWith("pine_") ? !pineIndicators.some((id) => k.startsWith(id)) : !activeKeys.has(k);
+      if (isInactive) {
         try { chart.removeSeries(s); } catch {}
         indicatorSeriesRef.current.delete(k);
+        lastSeriesDataKeyRef.current.delete(k);
+        didPruneSeries = true;
       }
     }
     // Prune inactive Pine primitives
+    let didPrunePrim = false;
     for (const [k, p] of pinePrimitivesRef.current) {
-      if (!activePrimKeys.has(k)) {
-        try { candleSeries.detachPrimitive(p); } catch {}
+      if (!pineIndicators.includes(k as any)) {
+        try {
+          p.updateData([], [], [], [], []);
+          candleSeries.detachPrimitive(p);
+        } catch {}
         pinePrimitivesRef.current.delete(k);
+        didPrunePrim = true;
       }
     }
+    if (didPruneSeries) {
+      try { chart.priceScale("right").applyOptions({ autoScale: true }); } catch {}
+    }
+    if (didPruneSeries || didPrunePrim) {
+      try { chart.timeScale().applyOptions({}); } catch {}
+    }
 
-    setPineTables((prev) => {
-      const filtered = prev.filter((t) => pineIndicators.some((id) => t.id.startsWith(id)));
-      return filtered.length === prev.length ? prev : filtered;
-    });
-
-    return () => { cancelled = true; };
+    if (pineIndicators.length === 0) {
+      setPineTables((prev) => (prev.length === 0 ? prev : []));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeIndicators, chartData, isDark, settings, pineRevision]);
+  }, [activeIndicators, chartData, isDark, settings, pineRevision, selectedSymbol, chartEpoch]);
 
   return { pineTables };
 }

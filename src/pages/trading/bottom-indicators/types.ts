@@ -33,6 +33,9 @@ export interface SeriesState {
     hist?: ISeriesApi<"Histogram">;
     d?: ISeriesApi<"Line">;
   };
+  lastBarTime?: number;
+  lastBarCount?: number;
+  lastFirstTime?: number;
 }
 
 export type IndicatorCalculatedData =

@@ -1,3 +1,10 @@
+import {
+  MACD_FORECAST_CODE,
+  LIQUIDITY_SWEEPS_CODE,
+  LIQUIDITY_SWINGS_CODE,
+  ALPHA_TREND_CODE,
+} from "./preloaded";
+
 export interface PineSample {
   name: string;
   description: string;
@@ -5,6 +12,26 @@ export interface PineSample {
 }
 
 export const PINE_SAMPLES: PineSample[] = [
+  {
+    name: "MACD Based Price Forecasting [LuxAlgo]",
+    description: "Forecasts future price trajectories using MACD regime shifts and historical percentiles",
+    code: MACD_FORECAST_CODE,
+  },
+  {
+    name: "Liquidity Sweeps [LuxAlgo]",
+    description: "Detects swing highs and lows and identifies liquidity sweeps and breakout retests",
+    code: LIQUIDITY_SWEEPS_CODE,
+  },
+  {
+    name: "Liquidity Swings [LuxAlgo]",
+    description: "Institutional liquidity swing zones with order count, volume delta labels, and level lines",
+    code: LIQUIDITY_SWINGS_CODE,
+  },
+  {
+    name: "AlphaTrend",
+    description: "ATR and MFI/RSI-based trend following overlay with trailing stops and BUY/SELL signals",
+    code: ALPHA_TREND_CODE,
+  },
   {
     name: "Dual SMA Crossover",
     description: "Trend-following overlay plotting fast (9) and slow (21) Simple Moving Averages",

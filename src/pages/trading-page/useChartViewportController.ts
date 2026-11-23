@@ -38,34 +38,24 @@ export function useChartViewportController(
 
   const candleLimit = useMemo(() => {
     switch (timeframe) {
-      case "1m":
-        return 1_000;
-      case "5m":
-        return 1_500;
-      case "15m":
-      case "30m":
-        return 2_000;
-      case "1h":
-      case "4h":
-        return 2_500;
-      case "1d":
-        return 1_825;
       case "1w":
         return 520;
       default:
-        return 2_000;
+        return 1_000;
     }
   }, [timeframe]);
 
   const queryClient = useQueryClient();
   useEffect(() => {
     if (!selectedSymbol || replayVersion) return;
-    const commonTfs: Timeframe[] = ["15m", "30m", "1h", "4h", "1d"];
-    for (const tf of commonTfs) {
-      if (tf === timeframe) continue;
-      const limit = tf === "4h" || tf === "1h" ? 2_500 : tf === "1d" ? 1_825 : 2_000;
-      prefetchCandles(queryClient, selectedSymbol, tf, limit);
-    }
+    const timer = setTimeout(() => {
+      const commonTfs: Timeframe[] = ["15m", "1h", "4h", "1d"];
+      for (const tf of commonTfs) {
+        if (tf === timeframe) continue;
+        prefetchCandles(queryClient, selectedSymbol, tf, 1_000);
+      }
+    }, 1500);
+    return () => clearTimeout(timer);
   }, [selectedSymbol, timeframe, replayVersion, queryClient]);
 
   const { data: candles = [] } = useCandles(

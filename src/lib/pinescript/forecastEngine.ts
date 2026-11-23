@@ -184,9 +184,32 @@ export function computeForecastAndFills(
     },
   ];
 
-  // Pine Script suppresses fills when either plot has display = display.none
-  // (like price_plot in LuxAlgo), so no historical rectangular fills are generated.
   const fills: PineFill[] = [];
+  if (params.signalArea !== false) {
+    const pts: { time: number; top: number; bottom: number; color?: string }[] = [];
+    for (let i = 0; i < n; i++) {
+      const c = candles[i];
+      if (!c) continue;
+      const initVal = uptrend[i] ? uptrendInitPrice[i] : downtrendInitPrice[i];
+      if (initVal === undefined || isNaN(initVal)) continue;
+      const isUp = uptrend[i];
+      const col = isUp ? (params.signalBull ?? "rgba(8, 153, 129, 0.25)") : (params.signalBear ?? "rgba(242, 54, 69, 0.25)");
+      pts.push({
+        time: c.time,
+        top: Math.max(c.close, initVal),
+        bottom: Math.min(c.close, initVal),
+        color: col,
+      });
+    }
+    if (pts.length > 1) {
+      fills.push({
+        id: "fill_price_ref",
+        topColor: params.signalBull ?? "rgba(8, 153, 129, 0.25)",
+        bottomColor: params.signalBear ?? "rgba(242, 54, 69, 0.25)",
+        points: pts,
+      });
+    }
+  }
 
   return { polylines, fills };
 }
