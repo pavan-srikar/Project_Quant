@@ -80,7 +80,6 @@ export function useChartStateRefs(selectedSymbol: string, timeframe: Timeframe) 
       pendingHistoricalTargetRef.current = null;
       initialLoadCompleteRef.current = false;
       preservedPriceRangeRef.current = null;
-      preservedTimeScaleRef.current = null;
     }
     if (prevTfRef.current !== timeframe) {
       prevTfRef.current = timeframe;
@@ -156,4 +155,41 @@ export function useChartStateRefs(selectedSymbol: string, timeframe: Timeframe) 
     preservedPriceRangeRef,
     preservedTimeScaleRef,
   };
+}
+
+export function captureTimeScaleOnUnmount(
+  chart: IChartApi,
+  preservedTimeScaleRef: React.RefObject<{ symbol: string; state: ChartTimeScaleState } | null> | undefined,
+  initialLoadCompleteRef: React.RefObject<boolean> | undefined,
+  allCandlesRef: React.RefObject<any[]>,
+  timeframeRef: React.RefObject<Timeframe>,
+  selectedSymbol: string,
+): void {
+  if (!preservedTimeScaleRef || !initialLoadCompleteRef?.current || allCandlesRef.current.length === 0) return;
+  const ts = getChartTimeScaleState(chart, allCandlesRef.current, timeframeRef.current);
+  if (ts && ts.barSpacing > 0 && (!preservedTimeScaleRef.current || preservedTimeScaleRef.current.symbol === selectedSymbol)) {
+    preservedTimeScaleRef.current = { symbol: selectedSymbol, state: ts };
+  }
+}
+
+export function resolvePreservedTimeScale(
+  refEntry: { symbol: string; state: ChartTimeScaleState } | null | undefined,
+  selectedSymbol: string,
+  anchorTs: ChartTimeScaleState | null | undefined,
+  isTfChange: boolean,
+  isAnchorMatch: boolean,
+  isNewChart: boolean,
+): ChartTimeScaleState | null {
+  const refTs = refEntry
+    ? refEntry.symbol === selectedSymbol
+      ? refEntry.state
+      : {
+          barSpacing: refEntry.state.barSpacing,
+          rightOffset: refEntry.state.rightOffset,
+          visibleBars: refEntry.state.visibleBars,
+          scrollPosition: Math.max(refEntry.state.rightOffset ?? 6, 0),
+        }
+    : null;
+  if (isTfChange || isAnchorMatch) return anchorTs || refTs || null;
+  return isNewChart ? refTs : null;
 }

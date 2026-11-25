@@ -36,6 +36,8 @@ export interface SeriesState {
   lastBarTime?: number;
   lastBarCount?: number;
   lastFirstTime?: number;
+  lastFirstClose?: number;
+  lastParamsKey?: string;
 }
 
 export type IndicatorCalculatedData =

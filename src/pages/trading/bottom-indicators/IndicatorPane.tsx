@@ -1,5 +1,5 @@
 import type { IChartApi } from "lightweight-charts";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { IndicatorSettings } from "../../../hooks/useIndicatorSettings.ts";
 import type { IndicatorType } from "../../../lib/indicators.ts";
 import { IndicatorHeader } from "./IndicatorHeader.tsx";
@@ -27,7 +27,7 @@ export function IndicatorPane({
   candles,
   settings,
   isDark = true,
-  timeframe = "15m",
+  timeframe = "4h",
   mainChart,
   showTimeScale,
   onOpenSettings,
@@ -37,7 +37,7 @@ export function IndicatorPane({
   const [crosshairTime, setCrosshairTime] = useState<number | null>(null);
 
   // 1. Indicator data calculations & crosshair lookup map
-  const { candleTimes, indicatorData, timePriceMap } = useIndicatorCalculation(
+  const { candleTimes, firstBarClose, indicatorData, timePriceMap } = useIndicatorCalculation(
     candles,
     type,
     settings,
@@ -47,16 +47,19 @@ export function IndicatorPane({
   const { chartContainerRef, chartRef, chartEpoch, isSubInteractingRef } =
     useIndicatorChart(timeframe, isDark, mainChart, showTimeScale);
 
+  const activeBelow = useMemo(() => [type], [type]);
+
   // 3. Persistent chart series and in-place updates
   const { mainSeriesRef } = useIndicatorSeries(
     chartRef,
-    [type],
+    activeBelow,
     indicatorData,
     candleTimes,
     type,
     settings,
     mainChart,
     chartEpoch,
+    firstBarClose,
   );
 
   // 4. Synchronization with mainChart (range, price scale width, crosshair)

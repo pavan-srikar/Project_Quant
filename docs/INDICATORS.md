@@ -253,8 +253,9 @@ To prevent memory leaks, GC pauses, and browser crashes ("Aw, Snap! Out of Memor
    - `timePriceMap` is cached via `timePriceMapRef`, decoupling crosshair tracking from React hook dependency arrays so listeners are never repeatedly unsubscribed and re-subscribed on ticks.
    - Horizontal logical range RAF sync in `useIndicatorSeries` executes only when new bars close, bypassing redundant per-tick coordinate recalculations.
 5. **Instrument Fingerprinting & Cross-Coin Invalidation**:
-   - Both AST execution caches (`pineCacheRef` in `useIndicators.ts`, `compKey` in `useIndicatorCalculation.ts`, and `pineEvaluationCache` in `pineTSRunner.ts`) and candle buffers (`toIndicatorCandles` in `utils.ts`, `SeriesState` in `seriesUpdate.ts`) fingerprint datasets using the first bar's time and close price (`firstBarTime` and `firstBarClose`).
-   - When switching coins/instruments (e.g. BTC to ETH) with identical bar counts and timestamps on the same timeframe, the difference in `firstBarClose` immediately invalidates the live-tick fast path, clears stale cache hits, re-evaluates Pine scripts for the new asset, and performs a complete `series.setData(...)`.
+   - Both AST execution caches (`pineCacheRef` in `useIndicators.ts`, `compKey` in `useIndicatorCalculation.ts`, and `pineEvaluationCache` in `pineTSRunner.ts`), crosshair lookup maps (`timePriceMap` in `useIndicatorCalculation.ts`), and series buffers (`SeriesState` in `seriesUpdate.ts` / `useIndicatorSeries.ts`) fingerprint datasets using `firstBarTime`, `firstBarClose`, and indicator parameter keys (`lastParamsKey`).
+   - Overlay series updates in `useIndicators.ts` (`setOrAdd`) also require `prevKey === dataKey` before using `s.update()`, ensuring parameter edits trigger a full `setData(...)`.
+   - When switching coins/instruments (e.g. ADA to BTC) with identical bar counts and timestamps on the same timeframe, the difference in `firstBarClose` immediately invalidates the live-tick fast path, rebuilds `timePriceMap`, clears stale cache hits, re-evaluates Pine scripts for the new asset, and performs a complete `series.setData(...)`.
 6. **Main-Thread Pine Execution Guard & Native VM Fast-Path (`evaluator.ts` & `pineTSRunner.ts`)**:
    - `evaluator.ts` routes specialized indicators (`isLiquiditySwings`, `isLiquiditySweeps`, `hasForecastPolyline`) directly to ultra-fast native TypeScript simulation engines (`liquiditySwingsEngine.ts`, `liquiditySweepsEngine.ts`, `forecastEngine.ts`), executing in ~3ms.
    - `pineTSRunner.ts` evaluates the full historical candle window (up to 1,200 bars, `MAX_PINETS_BARS = 1200`), completely eliminating partial indicator application across older bars.
@@ -265,11 +266,11 @@ To prevent memory leaks, GC pauses, and browser crashes ("Aw, Snap! Out of Memor
    - Before applying Pine results, `pineIndicators.includes(type)` verifies that the indicator was not deselected during evaluation.
 8. **Primitive Detachment & Canvas Invalidation**:
    - Lightweight Charts' `series.detachPrimitive(prim)` only unregisters the primitive from the internal list; it does not trigger a canvas repaint.
-   - When primitives or series are pruned, `useIndicators.ts` and `useIndicatorsPineApply.ts` call `chart.timeScale().applyOptions({})` to invalidate canvas raster buffers and clear orphaned drawings.
+   - When primitives or series are pruned (either removed or hidden via `settings[type].visible === false`), `useIndicators.ts` and `useIndicatorsPineApply.ts` detach primitives, remove series, clear hidden Pine tables, and call `chart.timeScale().applyOptions({})` to invalidate canvas raster buffers and clear orphaned drawings without altering `priceScale("right").autoScale` or candle viewport positions.
    - `targetBoxes`, `targetLines`, and `targetLabels` explicitly default to `[]`, preventing stale or undefined references from lingering in primitive views.
 9. **Right Price Scale Autoscale Invalidation on Coin Switch**:
    - Indicator series attached to `priceScaleId: "right"` retain their price bounds in the chart model until autoscale is re-evaluated.
-   - On symbol change (`isNewChart`), `useIndicators.ts` purges old indicator line series and immediately invokes `chart.priceScale("right").applyOptions({ autoScale: true })`, ensuring low-priced assets (SOL, ETH) do not inherit BTC's $60,000+ vertical price scale.
+   - On symbol change (`isNewChart`), `useIndicators.ts` purges old indicator line series and primitives without forcing `autoScale: true` (letting `useRealtimeEffects.ts` / `chartFraming.ts` perform the momentary fit and restore `chartPrefs.autoScale`), while keeping `hadForecastRef` stable across visibility toggles so hiding/showing forecast indicators never alters `rightOffset` or candle positions.
 
 ---
 

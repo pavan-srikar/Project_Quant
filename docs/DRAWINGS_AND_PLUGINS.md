@@ -153,6 +153,12 @@ Drawing Persisted ──► Broadcast to onAdd callback ──► Save in useCha
   - Line 2: Bar count (e.g., `48 bars`).
   - Line 3: Elapsed Time Duration (e.g., `2d 0h 0m`).
 
+### G. Fixed Range Volume Profile (`resolve-volume-profile.ts`, `volume-profile-renderer.ts`, `drawingToolMeta.ts`)
+- **TradingView-Aligned Vector Icon**: The tool metadata is registered with a custom `VolumeProfileIcon` matching TradingView's dual-anchor fixed-range iconography:
+  - Left vertical boundary with bottom circular anchor handle and stepped horizontal volume profile histogram bars.
+  - Right vertical boundary with top circular anchor handle.
+- **Histogram & Value Area**: Resolves volume distribution across price buckets bounded between start time (`time`) and end time (`time2`), highlighting Point of Control (POC) and Value Area (VA).
+
 ---
 
 ## 3. Order Flow Volume Footprint Subsystem (`footprint/`)

@@ -4,7 +4,7 @@ import type { IndicatorSettings } from "../../../hooks/useIndicatorSettings.ts";
 import type { IndicatorType } from "../../../lib/indicators.ts";
 import { PineRendererPrimitive } from "../../../lib/chart-plugins/pine-primitive";
 import { buildIndicatorSeries } from "./seriesBuilders.ts";
-import { updateSeriesData } from "./seriesUpdate.ts";
+import { getIndicatorParamsKey, updateSeriesData } from "./seriesUpdate.ts";
 import type { IndicatorCalculatedData, SeriesState } from "./types.ts";
 
 export function useIndicatorSeries(
@@ -16,6 +16,7 @@ export function useIndicatorSeries(
   currentSettings: IndicatorSettings,
   mainChart?: IChartApi | null,
   chartEpoch: number = 0,
+  firstBarClose?: number,
 ) {
   const seriesStateRef = useRef<SeriesState | null>(null);
   const mainSeriesRef = useRef<ISeriesApi<any> | null>(null);
@@ -88,7 +89,7 @@ export function useIndicatorSeries(
       // Just update data on existing series (smooth, 0ms, zero lag!)
       const prevCount = state.lastBarCount;
       const prevFirstTime = state.lastFirstTime;
-      updateSeriesData(state, indicatorData, candleTimes, currentSettings);
+      updateSeriesData(state, indicatorData, candleTimes, currentSettings, firstBarClose);
       if (paneLabels.length > 0) {
         if (!primitiveRef.current) {
           primitiveRef.current = new PineRendererPrimitive();
@@ -149,6 +150,11 @@ export function useIndicatorSeries(
       mainSeries,
       allSeries,
       extraSeries,
+      lastBarCount: candleTimes.length,
+      lastBarTime: candleTimes[candleTimes.length - 1] ?? 0,
+      lastFirstTime: candleTimes[0] ?? 0,
+      lastFirstClose: firstBarClose,
+      lastParamsKey: getIndicatorParamsKey(indicatorData),
     };
 
     // Align logical range with mainChart immediately
@@ -164,6 +170,7 @@ export function useIndicatorSeries(
     mainChart,
     chartRef,
     chartEpoch,
+    firstBarClose,
   ]);
 
   return { mainSeriesRef, seriesStateRef };

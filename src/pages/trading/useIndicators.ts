@@ -95,7 +95,7 @@ export function useIndicators(
       pinePrimitivesRef.current.clear();
       pineCacheRef.current.clear();
       activeEvalTokenRef.current = "";
-      try { chart.priceScale("right").applyOptions({ autoScale: true }); } catch {}
+      hadForecastRef.current = false;
       try { chart.timeScale().applyOptions({}); } catch {}
     }
 
@@ -135,7 +135,7 @@ export function useIndicators(
       const prevKey = lastSeriesDataKeyRef.current.get(key);
       const lastPoint = values[values.length - 1];
       if (s) {
-        if (isLiveTick && lastPoint) {
+        if (isLiveTick && prevKey === dataKey && lastPoint) {
           try { s.update({ time: lastPoint.time as Time, value: lastPoint.value }); } catch {}
         } else if (!dataKey || prevKey !== dataKey) {
           try {
@@ -155,6 +155,7 @@ export function useIndicators(
     };
 
     const pineIndicators = activeIndicators.filter((t) => t.startsWith("pine_"));
+    const visiblePineIndicators = pineIndicators.filter((id) => (settings[id] as any)?.visible !== false);
     const builtinOverlayIndicators = activeIndicators.filter((t) => {
       const c = INDICATOR_REGISTRY.find((r) => r.type === t);
       return c && c.pane === "overlay" && c.type !== "VOL";
@@ -182,14 +183,13 @@ export function useIndicators(
 
         const tablesAcc: PineTable[] = [];
 
-        for (const type of pineIndicators) {
+        for (const type of visiblePineIndicators) {
           if (activeEvalTokenRef.current !== evalToken) return;
           await new Promise<void>((resolve) => setTimeout(resolve, 0));
           if (activeEvalTokenRef.current !== evalToken) return;
           const script = customScripts.find((cs) => cs.id === type);
           if (!script) continue;
           const curSettings = settings[type] as any;
-          if (curSettings?.visible === false) continue;
           const isOverlay = script.overlay;
 
           try {
@@ -203,7 +203,7 @@ export function useIndicators(
               pineCacheRef.current.set(type, { key: cacheKey, result: evalRes });
             }
             if (activeEvalTokenRef.current !== evalToken) return;
-            if (!pineIndicators.includes(type as any)) continue;
+            if (!visiblePineIndicators.includes(type as any)) continue;
 
             applyPineEvaluationResult({
               type,
@@ -253,10 +253,12 @@ export function useIndicators(
 
     renderBuiltinOverlays({ builtinOverlayIndicators, settings, indCandles, candleKey, setOrAdd });
 
-    // Prune inactive built-in and Pine line series
+    // Prune inactive or hidden built-in and Pine line series
     let didPruneSeries = false;
     for (const [k, s] of indicatorSeriesRef.current) {
-      const isInactive = k.startsWith("pine_") ? !pineIndicators.some((id) => k.startsWith(id)) : !activeKeys.has(k);
+      const isInactive = k.startsWith("pine_")
+        ? !visiblePineIndicators.some((id) => k === id || k.startsWith(`${id}_`))
+        : !activeKeys.has(k);
       if (isInactive) {
         try { chart.removeSeries(s); } catch {}
         indicatorSeriesRef.current.delete(k);
@@ -264,10 +266,10 @@ export function useIndicators(
         didPruneSeries = true;
       }
     }
-    // Prune inactive Pine primitives
+    // Prune inactive or hidden Pine primitives
     let didPrunePrim = false;
     for (const [k, p] of pinePrimitivesRef.current) {
-      if (!pineIndicators.includes(k as any)) {
+      if (!visiblePineIndicators.includes(k as any)) {
         try {
           p.updateData([], [], [], [], []);
           candleSeries.detachPrimitive(p);
@@ -276,14 +278,11 @@ export function useIndicators(
         didPrunePrim = true;
       }
     }
-    if (didPruneSeries) {
-      try { chart.priceScale("right").applyOptions({ autoScale: true }); } catch {}
-    }
     if (didPruneSeries || didPrunePrim) {
       try { chart.timeScale().applyOptions({}); } catch {}
     }
 
-    if (pineIndicators.length === 0) {
+    if (visiblePineIndicators.length === 0) {
       setPineTables((prev) => (prev.length === 0 ? prev : []));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

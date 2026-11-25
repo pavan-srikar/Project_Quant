@@ -83,7 +83,7 @@ export function applyPineEvaluationResult({
       const fcastBars = Math.min(80, Math.max(45, (evalRes.polylines?.[0]?.points?.length ?? 50) - 1));
       ts.applyOptions({ rightOffset: fcastBars });
       const curRange = ts.getVisibleLogicalRange(), span = curRange ? (curRange.to - curRange.from) : 80;
-      if (!curRange || curRange.to < indCandles.length + 20) {
+      if (!curRange || (curRange.to >= indCandles.length - 5 && curRange.to < indCandles.length + 20)) {
         const newTo = indCandles.length + fcastBars;
         ts.setVisibleLogicalRange({ from: Math.max(0, newTo - span), to: newTo });
       }

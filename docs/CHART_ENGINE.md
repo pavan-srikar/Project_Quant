@@ -55,9 +55,9 @@ src/pages/trading/chart/
    - `timeScale`: Minimum bar spacing `1.5px` to prevent sub-pixel bar collapse.
 2. **Series Construction**:
    `chartSeriesInit.ts` adds:
-   - Primary `CandlestickSeries` with `#089981` (bullish) and `#f23645` (bearish) styling.
-   - Secondary `HistogramSeries` for volume on an overlay scale with `scaleMargins: { top: 0.82, bottom: 0 }`.
-   - Dashed Bid and Ask price lines created on `candleSeries.createPriceLine`.
+   - Primary `CandlestickSeries` with `#d1d4dc` (ash grey bullish) and `#5d606b` (dark grey bearish) styling.
+   - Secondary `HistogramSeries` for volume on an overlay scale with `scaleMargins: { top: 0.82, bottom: 0 }`, matching the ash grey (`rgba(209, 212, 220, 0.4)`) and dark grey (`rgba(93, 96, 107, 0.4)`) theme colors. Visibility in `useChartOptionSync.ts` respects both active indicator membership (`"VOL"`) and the per-indicator eye toggle (`indicatorSettings.VOL.visible !== false`).
+   - Dashed Bid and Ask price lines created on `candleSeries.createPriceLine` (disabled by default unless toggled on).
 
 ---
 
@@ -202,8 +202,9 @@ When switching timeframes on the same symbol (e.g. 4H → 1H, 4H → 30m), Tradi
    - `getChartTimeScaleState(chart)` extracts `{ barSpacing, rightOffset, visibleBars, scrollPosition, lastVisibleTime }`.
    - `frameLatestCandles` and `frameHistoricalViewport` re-apply `barSpacing` (candle pixel width / zoom ratio) and pin the rightmost candle at its exact offset on the screen.
    - Clamping to artificial bounds (e.g. 80 or 150 bars) is eliminated, faithfully preserving the user's zoom whether zoomed in to a few candles or zoomed out to hundreds of bars.
-3. **Symbol Switch Isolation**:
-   - Preserved anchors and refs are strictly scoped to the active symbol. Switching symbols (e.g. BTC → ETH) clears anchors and triggers standard default framing and auto-scaling.
+3. **Symbol Switch Zoom Preservation**:
+   - Before destroying a chart on symbol change, `useChartLifecycle.ts` captures the active `ChartTimeScaleState` (`barSpacing`, `visibleBars`, `rightOffset`) into `preservedTimeScaleRef`.
+   - `resolvePreservedTimeScale` in `useChartStateRefs.ts` carries over the zoom ratio (excluding `lastVisibleTime` and historical `scrollPosition`) so `frameLatestCandles` preserves the user's exact candle zoom across coin switches while price-scale `autoScale` remains governed by `chartPrefs.autoScale`.
 4. **Primary Timeframe Background Prefetching**:
    - `useChartViewportController` prefetches primary intervals (`15m`, `30m`, `1h`, `4h`, `1d`) via `prefetchCandles(queryClient, ...)`.
    - On the very first timeframe switch, candles are already cached in TanStack Query memory, guaranteeing zero-flash instant transitions.

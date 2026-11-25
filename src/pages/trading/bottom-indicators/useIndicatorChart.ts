@@ -8,7 +8,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 export function useIndicatorChart(
-  timeframe: string = "15m",
+  timeframe: string = "4h",
   _isDark: boolean = true,
   mainChart?: IChartApi | null,
   showTimeScale: boolean = true,

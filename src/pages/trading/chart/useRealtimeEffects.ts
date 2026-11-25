@@ -20,6 +20,7 @@ import type {
   ReplayTradeEvent, RtCtx, TickData,
 } from "./types.ts";
 import { useCandleCountdown } from "./useCandleCountdown.ts";
+import { resolvePreservedTimeScale } from "./useChartStateRefs.ts";
 import { legendFromSeries } from "./useChartDataPipeline.ts";
 import { useLineCrossAlerts } from "./useLineCrossAlerts.ts";
 import { useReplayMarkers } from "./useReplayMarkers.ts";
@@ -120,8 +121,9 @@ export function useRealtimeEffects(params: RealtimeEffectsParams) {
     const preservedPriceRange = (isTfChange || isAnchorMatch) ? (anchorPr || refPr || currentChartPr || null) : null;
     if (preservedPriceRange && preservedPriceRangeRef) preservedPriceRangeRef.current = { symbol: selectedSymbol, ...preservedPriceRange };
     const anchorTs = isAnchorMatch ? anchor?.timeScaleState : null;
-    const refTs = preservedTimeScaleRef?.current?.symbol === selectedSymbol ? preservedTimeScaleRef.current.state : null;
-    const preservedTimeScale = (isTfChange || isAnchorMatch) ? (anchorTs || refTs || null) : null;
+    const preservedTimeScale = resolvePreservedTimeScale(
+      preservedTimeScaleRef?.current, selectedSymbol, anchorTs, isTfChange, isAnchorMatch, isNewChart,
+    );
     if (preservedTimeScale && preservedTimeScaleRef) preservedTimeScaleRef.current = { symbol: selectedSymbol, state: preservedTimeScale };
 
     if (isChangingTfRef) isChangingTfRef.current = true;

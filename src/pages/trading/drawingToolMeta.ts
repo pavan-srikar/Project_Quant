@@ -1,13 +1,14 @@
+import React from "react";
 import {
   ArrowDownRight,
   ArrowRight,
   ArrowUpRight,
-  BarChartHorizontal,
   Circle,
   Equal,
   Layers,
   Layers3,
   type LucideIcon,
+  type LucideProps,
   Minus,
   MoveUpRight,
   MoveVertical,
@@ -19,6 +20,35 @@ import {
   Type,
 } from "lucide-react";
 import type { DrawingTool } from "./constants.ts";
+
+export const VolumeProfileIcon = React.forwardRef<SVGSVGElement, LucideProps>(
+  ({ className, size = 24, strokeWidth = 1.25, ...props }, ref) =>
+    React.createElement(
+      "svg",
+      {
+        ref,
+        xmlns: "http://www.w3.org/2000/svg",
+        viewBox: "0 0 24 24",
+        width: size,
+        height: size,
+        fill: "none",
+        stroke: "currentColor",
+        strokeWidth,
+        strokeLinejoin: "miter",
+        strokeLinecap: "butt",
+        className,
+        ...props,
+      },
+      React.createElement("line", { x1: 3, y1: 2, x2: 3, y2: 17.5 }),
+      React.createElement("circle", { cx: 3, cy: 19.5, r: 2 }),
+      React.createElement("path", { d: "M3 4.5h5.5v3H3" }),
+      React.createElement("path", { d: "M3 7.5h9v3H3" }),
+      React.createElement("path", { d: "M3 10.5h4v3H3" }),
+      React.createElement("circle", { cx: 21, cy: 4.5, r: 2 }),
+      React.createElement("line", { x1: 21, y1: 6.5, x2: 21, y2: 21.5 }),
+    ),
+);
+VolumeProfileIcon.displayName = "VolumeProfileIcon";
 
 export interface DrawingToolMeta {
   tool: DrawingTool;
@@ -45,7 +75,7 @@ export const DRAWING_TOOLS_LIST: DrawingToolMeta[] = [
   { tool: "short-position", icon: ArrowDownRight, label: "Short Position", shortcut: "" },
   {
     tool: "fixed-range-volume-profile",
-    icon: BarChartHorizontal,
+    icon: VolumeProfileIcon as LucideIcon,
     label: "Fixed Range Volume Profile",
     shortcut: "",
   },

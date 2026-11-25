@@ -124,9 +124,9 @@ export const DEFAULT_INDICATOR_SETTINGS: Record<IndicatorType, IndicatorSettings
     visible: true,
   },
   VOL: {
-    color: "#26a69a",
-    histUpColor: "#26a69a",
-    histDownColor: "#ef5350",
+    color: "#d1d4dc",
+    histUpColor: "rgba(209, 212, 220, 0.4)",
+    histDownColor: "rgba(93, 96, 107, 0.4)",
     lineWidth: 1,
     visible: true,
   },
@@ -152,6 +152,15 @@ export function getStoredIndicatorSettings(): Record<IndicatorType, IndicatorSet
     for (const key of Object.keys(parsed)) {
       if (!(key in DEFAULT_INDICATOR_SETTINGS) && parsed[key]) {
         result[key] = parsed[key];
+      }
+    }
+    if (result.VOL) {
+      if (result.VOL.histUpColor === "#26a69a" || result.VOL.color === "#26a69a") {
+        result.VOL.histUpColor = "rgba(209, 212, 220, 0.4)";
+        result.VOL.color = "#d1d4dc";
+      }
+      if (result.VOL.histDownColor === "#ef5350") {
+        result.VOL.histDownColor = "rgba(93, 96, 107, 0.4)";
       }
     }
     if (result.EMA && (!result.EMA.emaSlots || result.EMA.emaSlots.length === 0)) {

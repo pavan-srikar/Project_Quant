@@ -31,7 +31,7 @@ export function useChartViewportController(
   // Chart timeframe persistence across symbols
   const [timeframe, setTimeframe] = useState<Timeframe>(() => {
     const saved = localStorage.getItem("trading_timeframe");
-    return saved && TIMEFRAMES.includes(saved as Timeframe) ? (saved as Timeframe) : "15m";
+    return saved && TIMEFRAMES.includes(saved as Timeframe) ? (saved as Timeframe) : "4h";
   });
 
   const [historicalTargetTime, setHistoricalTargetTime] = useState<number | undefined>(undefined);

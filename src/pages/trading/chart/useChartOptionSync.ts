@@ -17,6 +17,7 @@ export interface ChartOptionSyncParams {
   timeframe: Timeframe;
   chartEpoch: number;
   hideTimeScale?: boolean;
+  volumeVisible?: boolean;
 }
 
 export function useChartOptionSync({
@@ -31,6 +32,7 @@ export function useChartOptionSync({
   timeframe,
   chartEpoch,
   hideTimeScale = false,
+  volumeVisible = true,
 }: ChartOptionSyncParams) {
   // 1. Watermark sync
   useEffect(() => {
@@ -76,8 +78,8 @@ export function useChartOptionSync({
     const isVolActive = chartPrefs.activeIndicators
       ? chartPrefs.activeIndicators.includes("VOL")
       : chartPrefs.showVolume;
-    volumeSeriesRef.current?.applyOptions({ visible: isVolActive });
-  }, [chartPrefs.showVolume, chartPrefs.activeIndicators, chartEpoch, volumeSeriesRef]);
+    volumeSeriesRef.current?.applyOptions({ visible: isVolActive && volumeVisible });
+  }, [chartPrefs.showVolume, chartPrefs.activeIndicators, volumeVisible, chartEpoch, volumeSeriesRef]);
 
   // 4. Grid visibility
   useEffect(() => {

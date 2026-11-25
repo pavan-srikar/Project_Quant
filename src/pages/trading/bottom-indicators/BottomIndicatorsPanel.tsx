@@ -15,7 +15,7 @@ export function BottomIndicatorsPanel({
   activeIndicators,
   onToggleIndicator,
   isDark = true,
-  timeframe = "15m",
+  timeframe = "4h",
   mainChart,
 }: BottomIndicatorsPanelProps) {
   const {

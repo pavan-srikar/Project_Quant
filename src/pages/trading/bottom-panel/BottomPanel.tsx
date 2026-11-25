@@ -41,7 +41,7 @@ export function BottomPanel({
   activeIndicators = [],
   onToggleIndicator,
   isDark = true,
-  timeframe = "15m",
+  timeframe = "4h",
   mainChart,
   isCollapsed = false,
   onToggleCollapse,

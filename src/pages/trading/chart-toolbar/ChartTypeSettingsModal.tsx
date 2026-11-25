@@ -165,7 +165,7 @@ export function ChartTypeSettingsModal({
                   <label className="text-[11px] text-neutral-400 block mb-1">Up Candle</label>
                   <input
                     type="color"
-                    value={prefs.candleUpColor || "#089981"}
+                    value={prefs.candleUpColor || "#d1d4dc"}
                     onChange={(e) => updateChartPreferences({ candleUpColor: e.target.value })}
                     className="w-full h-8 bg-transparent cursor-pointer rounded border border-[#2a2e39]"
                   />
@@ -174,7 +174,7 @@ export function ChartTypeSettingsModal({
                   <label className="text-[11px] text-neutral-400 block mb-1">Down Candle</label>
                   <input
                     type="color"
-                    value={prefs.candleDownColor || "#f23645"}
+                    value={prefs.candleDownColor || "#5d606b"}
                     onChange={(e) => updateChartPreferences({ candleDownColor: e.target.value })}
                     className="w-full h-8 bg-transparent cursor-pointer rounded border border-[#2a2e39]"
                   />

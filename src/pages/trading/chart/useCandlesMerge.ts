@@ -19,7 +19,7 @@ export function useCandlesMerge({
   drawingManagerRef,
   onAllCandlesChange,
   colors,
-  timeframe = "15m",
+  timeframe = "4h",
 }: UseCandlesMergeParams) {
   const prevTfRef = useRef(timeframe);
 

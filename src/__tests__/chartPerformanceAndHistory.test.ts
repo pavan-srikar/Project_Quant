@@ -16,6 +16,7 @@ import {
 import { getChartPreferencesFromStorage } from "../hooks/useChartPreferences.ts";
 import { areCandlesConnecting, hasDiscontinuity } from "../services/demo/candles.ts";
 import { handlePriceScaleWheel } from "../pages/trading/chart/chartWheelHandler.ts";
+import { resolvePreservedTimeScale } from "../pages/trading/chart/useChartStateRefs.ts";
 
 describe("Chart Performance & History Preserving Tests", () => {
   it("makeResolveCtx avoids calling series.data() when candles are provided", () => {
@@ -686,5 +687,50 @@ describe("Chart Performance & History Preserving Tests", () => {
     // Wait for requestAnimationFrame to disable autoScale
     await new Promise((resolve) => requestAnimationFrame(resolve));
     expect(applyOptionsSpy).toHaveBeenCalledWith({ autoScale: false });
+  });
+
+  it("resolvePreservedTimeScale carries zoom ratio across symbol switches without leaking historical scroll", () => {
+    const prevEntry = {
+      symbol: "BTCUSDT",
+      state: {
+        barSpacing: 1.5,
+        rightOffset: 6,
+        visibleBars: 1100,
+        scrollPosition: -250,
+        lastVisibleTime: 1700000000,
+      },
+    };
+
+    const resolved = resolvePreservedTimeScale(
+      prevEntry,
+      "ETHUSDT",
+      null,
+      false,
+      false,
+      true,
+    );
+
+    expect(resolved).toEqual({
+      barSpacing: 1.5,
+      rightOffset: 6,
+      visibleBars: 1100,
+      scrollPosition: 6,
+    });
+
+    const applyOptionsSpy = vi.fn();
+    const setVisibleLogicalRangeSpy = vi.fn();
+    const mockChart: any = {
+      timeScale: () => ({
+        applyOptions: applyOptionsSpy,
+        setVisibleLogicalRange: setVisibleLogicalRangeSpy,
+        scrollToPosition: vi.fn(),
+      }),
+      priceScale: () => ({ applyOptions: vi.fn() }),
+    };
+
+    // Even when zoomed out wider than barCount (1000 < 1100), from is not clamped to 0
+    frameLatestCandles(mockChart, 1000, false, null, resolved);
+    expect(applyOptionsSpy).toHaveBeenCalledWith({ barSpacing: 1.5, rightOffset: 6 });
+    expect(setVisibleLogicalRangeSpy).toHaveBeenCalledWith({ from: -94, to: 1006 });
   });
 });

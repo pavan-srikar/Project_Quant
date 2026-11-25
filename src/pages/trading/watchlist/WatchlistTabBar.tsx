@@ -50,7 +50,7 @@ export function WatchlistTabBar({
         ref={tabsRef}
         onWheel={(e) => {
           if (e.deltaY !== 0) {
-            e.currentTarget.scrollLeft += e.deltaY;
+            e.currentTarget.scrollLeft -= e.deltaY;
           }
         }}
         className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth px-0.5 py-0.5"

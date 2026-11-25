@@ -201,7 +201,7 @@ export function WatchlistPanel({
 
       {/* Floating Watchlist Carousel Bar */}
       <div className="px-2.5 shrink-0 mb-2">
-        <div className="flex items-center gap-2 bg-[#131722] p-1.5 rounded-2xl border border-[#2a2e39] shadow-sm">
+        <div className="relative flex items-center gap-2 bg-[#131722] p-1.5 rounded-2xl border border-[#2a2e39] shadow-sm">
           <WatchlistBurgerMenu activeTab={activeTab} setActiveTab={setActiveTab} />
           <WatchlistTabBar
             activeTab={activeTab}

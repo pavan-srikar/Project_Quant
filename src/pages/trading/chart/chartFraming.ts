@@ -276,7 +276,7 @@ export function frameLatestCandles(
         const scrollPos = typeof preservedTimeScale.scrollPosition === "number" ? preservedTimeScale.scrollPosition : (preservedTimeScale.rightOffset ?? 5);
         to = barCount + scrollPos;
       }
-      const from = Math.max(0, to - visibleBars);
+      const from = barCount >= 100 ? to - visibleBars : Math.max(0, to - visibleBars);
       ts.applyOptions({ barSpacing: preservedTimeScale.barSpacing, rightOffset: preservedTimeScale.rightOffset ?? rightMargin });
       ts.setVisibleLogicalRange({ from, to });
       if (!data && typeof preservedTimeScale.scrollPosition === "number") {

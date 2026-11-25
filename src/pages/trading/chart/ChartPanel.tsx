@@ -69,15 +69,16 @@ export function ChartPanel({
   const indicatorState = useChartIndicatorSettingsState(activeIndicators);
 
   const chartPrefs = useChartPreferences();
+  const volSettings = indicatorState.indicatorSettings?.VOL;
+  const volColor = volSettings?.color;
+  const volHistUp = volSettings?.histUpColor;
+  const volHistDown = volSettings?.histDownColor;
   const colors = useMemo(() => {
     const base = mergeChartColors(isDark ? CHART_COLORS.dark : CHART_COLORS.light, chartPrefs);
-    const vol = indicatorState.indicatorSettings?.VOL;
-    return {
-      ...base,
-      volumeUp: vol?.histUpColor || vol?.color || base.volumeUp,
-      volumeDown: vol?.histDownColor || base.volumeDown,
-    };
-  }, [isDark, chartPrefs, indicatorState.indicatorSettings]);
+    const volUp = volHistUp === "#26a69a" ? undefined : volHistUp || volColor;
+    const volDown = volHistDown === "#ef5350" ? undefined : volHistDown;
+    return { ...base, volumeUp: volUp || base.volumeUp, volumeDown: volDown || base.volumeDown };
+  }, [isDark, chartPrefs, volColor, volHistUp, volHistDown]);
 
   const selectionState = useDrawingSelectionState(drawings, timeframe);
 
@@ -138,6 +139,7 @@ export function ChartPanel({
     selectedSymbol,
     timeframe,
     hideTimeScale,
+    volumeVisible: indicatorState.indicatorSettings?.VOL?.visible !== false,
     ...drawingRefs,
   });
 

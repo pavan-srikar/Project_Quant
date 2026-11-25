@@ -20,6 +20,7 @@ src/
 │   ├── WatchlistTabBar.tsx         # Multi-tab switcher between custom lists
 │   ├── WatchlistSymbolRow.tsx      # Draggable row showing ticker, bid/ask, % change
 │   ├── WatchlistBurgerMenu.tsx     # Menu for creating, renaming, deleting lists
+│   ├── WatchlistNameEditor.tsx     # Shared inline input for creating/renaming lists
 │   ├── RibbonFlagIcon.tsx          # Color-coded ribbon bookmarking icons
 │   ├── useTickerChanges.ts         # Flash green/red animation on live price changes
 │   └── types.ts                    # Watchlist state types and row models
@@ -45,3 +46,13 @@ Users can create multiple named watchlists (e.g., "Top Crypto", "Favorites", "De
 - Data is saved in `localStorage` under `project_quant_watchlists`.
 - Symbols can be added, removed, flagged, and dragged to reorder.
 - Flag colors (red, blue, green, orange, purple) allow quick filtering within any active watchlist.
+
+---
+
+## 4. Watchlist Tab Bar & Burger Menu (`WatchlistTabBar.tsx`, `WatchlistBurgerMenu.tsx`)
+
+- **Tab Carousel (`WatchlistTabBar.tsx`)**: Horizontal tab switcher (`Flagged`, custom watchlists, `All`) with inverted vertical mouse-wheel scrolling (`scrollLeft -= deltaY`) and edge-fade cues on overflow.
+- **Burger Menu (`WatchlistBurgerMenu.tsx`)**, anchored to the `relative` floating watchlist carousel pill in `WatchlistPanel.tsx`:
+- **Flush Alignment**: Positioned `left-0 right-0 top-full mt-2` so the popover aligns cleanly with both edges of the pill bar and pairs block at any sidebar width.
+- **Elevated Surface**: Uses a brighter `#222736` card surface with `#3a4256` border and subtle highlight ring so the open menu stands out over the `#131722` pairs list.
+- **Layout**: Header with watchlist count badge, interactive watchlist rows (with right-aligned symbol counts and hover rename/delete controls), `+ Create New Watchlist` button/input, and a clickable `Flagged items` footer shortcut.

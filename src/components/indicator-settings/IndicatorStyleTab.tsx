@@ -18,13 +18,13 @@ export function IndicatorStyleTab({ type, draft, setDraft }: IndicatorStyleTabPr
       <div className="space-y-4">
         <ColorPicker
           label="Bullish / Up Volume Color"
-          value={draft.histUpColor || draft.color || "#26a69a"}
+          value={draft.histUpColor || draft.color || "rgba(209, 212, 220, 0.4)"}
           onChange={(val) => setDraft((d) => ({ ...d, histUpColor: val, color: val }))}
         />
         <div className="pt-3 border-t border-[#2a2e39]/60">
           <ColorPicker
             label="Bearish / Down Volume Color"
-            value={draft.histDownColor || "#ef5350"}
+            value={draft.histDownColor || "rgba(93, 96, 107, 0.4)"}
             onChange={(val) => setDraft((d) => ({ ...d, histDownColor: val }))}
           />
         </div>

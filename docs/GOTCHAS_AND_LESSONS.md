@@ -156,6 +156,13 @@ This document catalogs non-obvious engineering gotchas, solved bugs, and archite
   4. Guard anchor clearance in `useRealtimeEffects`: verify `Number(chartData[0]!.time) <= anchor.toTime + 86400 * 30`. If incoming data is stale live data while historical fetch is in-flight, retain the anchor and do not reframe until real historical data arrives.
   5. Apply `ts.applyOptions({ barSpacing, rightOffset })` BEFORE `ts.setVisibleLogicalRange({ from, to })` so options do not overwrite the logical range.
 
+### H. Preserving User Chart Preferences (`autoScale = false`, Zoom Ratio & Candle Position)
+- **Rules**:
+  1. **Auto-Scale Stays Disabled**: Never enable `priceScale("right").applyOptions({ autoScale: true })` when pruning/hiding indicators or on `isNewChart` in `useIndicators.ts`. Momentary symbol-switch framing in `useRealtimeEffects.ts` / `chartFraming.ts` must restore `autoScale: false` whenever `!chartPrefs.autoScale`.
+  2. **Hide/Show Indicators Never Moves Candles**: Visibility toggles (`VOL`, built-ins, and Pine forecast indicators via `hadForecastRef`) must not alter `rightOffset`, `setVisibleLogicalRange`, `autoScale`, or recreate `ChartPanel` `colors`.
+  3. **Zoom Ratio Persists Across Coin Switches**: `useChartLifecycle.ts` captures `barSpacing`, `visibleBars`, and `rightOffset` via `captureTimeScaleOnUnmount` before destroying the old chart, and `resolvePreservedTimeScale` + `frameLatestCandles` (unclamped `from = to - visibleBars` when `barCount >= 100`) preserve exact zoom on the new symbol.
+  4. **Cross-Coin Sub-Chart Invalidation**: `SeriesState` (`seriesUpdate.ts`), `timePriceMap` (`useIndicatorCalculation.ts`), and overlay `setOrAdd` (`useIndicators.ts`) must fingerprint `firstBarTime`, `firstBarClose`, and parameter keys so switching coins with identical timestamps/bar counts performs a full `setData(...)`.
+
 ---
 
 ## 4. Pine Script Engine & Compatibility Gotchas

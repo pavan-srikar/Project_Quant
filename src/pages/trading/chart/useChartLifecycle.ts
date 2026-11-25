@@ -9,6 +9,7 @@ import { initChartSeries } from "./chartSeriesInit.ts";
 import { createChartWheelHandler } from "./chartWheelHandler.ts";
 import { initDrawingToolsManager } from "./drawingManagerInit.ts";
 import type { ChartLifecycleParams } from "./types.ts";
+import { captureTimeScaleOnUnmount } from "./useChartStateRefs.ts";
 import { useChartOptionSync } from "./useChartOptionSync.ts";
 
 export type { ChartLifecycleParams };
@@ -17,7 +18,7 @@ export function useChartLifecycle(params: ChartLifecycleParams) {
   const {
     containerRef, chartRef, candleSeriesRef, volumeSeriesRef, drawingManagerRef,
     loadMoreRef, hasUserPannedOrZoomedRef, isScrolledBackRef, isChangingTfRef,
-    pendingHistoricalTargetRef, lastVisibleTimeRangeRef, timeframeRef, allCandlesRef,
+    pendingHistoricalTargetRef, lastVisibleTimeRangeRef, preservedTimeScaleRef, initialLoadCompleteRef, timeframeRef, allCandlesRef,
     lastCandleRef, lastLoadKeyRef, lastLoadedSeriesRef, liveCandleTsRef, legendVolRef,
     legendRestoredRef, hoveredTimeRef, lastGapRefetchAtRef, bidLineRef, askLineRef, midLineRef,
     chartPluginsRef, drawingMenuOpenedRef, onChartReady, setLegend, setHistoricalExtra,
@@ -25,7 +26,7 @@ export function useChartLifecycle(params: ChartLifecycleParams) {
     drawingsRef, magnetRef, stayInModeRef, accountEquityRef, styleDefaultsRef,
     onAddDrawingRef, onUpdateDrawingRef, onRemoveDrawingRef, onDrawingCompleteRef,
     onDrawingToolSelectRef, onUndoDrawingRef, onRedoDrawingRef, isDark, pipDigits,
-    colors, chartPrefs, selectedSymbol, timeframe, hideTimeScale,
+    colors, chartPrefs, selectedSymbol, timeframe, hideTimeScale, volumeVisible = true,
   } = params;
 
   const [chartEpoch, setChartEpoch] = useState(0);
@@ -240,6 +241,9 @@ export function useChartLifecycle(params: ChartLifecycleParams) {
       drawingManagerRef.current = null;
       setSelectedDrawingIds([]);
       setShowDrawingSettings(false);
+      captureTimeScaleOnUnmount(
+        chart, preservedTimeScaleRef, initialLoadCompleteRef, allCandlesRef, timeframeRef, selectedSymbol,
+      );
       chart.remove();
       chartRef.current = null;
       onChartReadyRef.current?.(null);
@@ -282,6 +286,7 @@ export function useChartLifecycle(params: ChartLifecycleParams) {
     timeframe,
     chartEpoch,
     hideTimeScale,
+    volumeVisible,
   });
 
   return { chartEpoch };

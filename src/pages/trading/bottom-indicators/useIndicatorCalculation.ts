@@ -36,6 +36,7 @@ export function useIndicatorCalculation(
   const activeCompKeyRef = useRef<string>("");
   const timePriceMapRef = useRef<Map<number, number>>(new Map());
   const prevDataLenRef = useRef<number>(0);
+  const prevMapKeyRef = useRef<string>("");
 
   useEffect(() => {
     if (!selectedType.startsWith("pine_") || indCandles.length === 0) {
@@ -212,37 +213,43 @@ export function useIndicatorCalculation(
     if (!pts || pts.length === 0) {
       map.clear();
       prevDataLenRef.current = 0;
+      prevMapKeyRef.current = "";
       return map;
     }
 
+    const mapKey = `${selectedType}_${firstBarTime}_${firstBarClose}_${pts[0]?.time ?? 0}_${pts[0]?.value ?? 0}`;
+    const isSameDataset = prevMapKeyRef.current === mapKey;
+
     // Fast path: live tick on current bar (same length) -> update last point O(1)
-    if (map.size > 0 && pts.length === prevDataLenRef.current) {
+    if (isSameDataset && map.size > 0 && pts.length === prevDataLenRef.current) {
       const lastPt = pts[pts.length - 1]!;
       map.set(lastPt.time, lastPt.value);
       return map;
     }
 
     // Fast path: single new bar appended
-    if (map.size > 0 && pts.length === prevDataLenRef.current + 1) {
+    if (isSameDataset && map.size > 0 && pts.length === prevDataLenRef.current + 1) {
       const lastPt = pts[pts.length - 1]!;
       map.set(lastPt.time, lastPt.value);
       prevDataLenRef.current = pts.length;
       return map;
     }
 
-    // Cold path: full rebuild on symbol switch / initial data load
+    // Cold path: full rebuild on symbol switch / parameter change / initial data load
     map.clear();
     for (let i = 0; i < pts.length; i++) {
       const p = pts[i]!;
       map.set(p.time, p.value);
     }
     prevDataLenRef.current = pts.length;
+    prevMapKeyRef.current = mapKey;
     return map;
-  }, [indicatorData]);
+  }, [indicatorData, selectedType, firstBarTime, firstBarClose]);
 
   return {
     indCandles,
     candleTimes,
+    firstBarClose,
     indicatorData,
     timePriceMap,
   };

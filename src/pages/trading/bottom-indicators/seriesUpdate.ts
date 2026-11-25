@@ -117,22 +117,44 @@ function fullSetSeriesData(
   }
 }
 
+export function getIndicatorParamsKey(indicatorData: NonNullable<IndicatorCalculatedData>): string {
+  switch (indicatorData.type) {
+    case "MACD":
+      return `MACD_${indicatorData.fast}_${indicatorData.slow}_${indicatorData.signal}`;
+    case "STOCH":
+      return `STOCH_${indicatorData.kPeriod}_${indicatorData.dPeriod}`;
+    case "CUSTOM":
+      return `CUSTOM_${indicatorData.name}_${indicatorData.plots?.length ?? 0}_${indicatorData.data[0]?.value ?? 0}`;
+    default:
+      return `${indicatorData.type}_${indicatorData.period}`;
+  }
+}
+
 export function updateSeriesData(
   state: SeriesState,
   indicatorData: NonNullable<IndicatorCalculatedData>,
   candleTimes: number[],
   currentSettings: IndicatorSettings,
+  firstBarClose?: number,
 ): void {
   const currentCount = candleTimes.length;
   const currentLastTime = candleTimes[currentCount - 1] ?? 0;
   const currentFirstTime = candleTimes[0] ?? 0;
+  const paramsKey = getIndicatorParamsKey(indicatorData);
 
   const isSameInstrument =
-    state.lastFirstTime != null && state.lastFirstTime === currentFirstTime;
+    state.lastFirstTime != null &&
+    state.lastFirstTime === currentFirstTime &&
+    state.lastFirstClose != null &&
+    firstBarClose != null &&
+    state.lastFirstClose === firstBarClose &&
+    state.lastParamsKey === paramsKey;
 
   const isIncrementalTick =
     isSameInstrument &&
+    currentCount > 0 &&
     state.lastBarCount != null &&
+    state.lastBarCount > 0 &&
     state.lastBarTime != null &&
     (
       (currentCount === state.lastBarCount && currentLastTime === state.lastBarTime) ||
@@ -142,6 +164,8 @@ export function updateSeriesData(
   state.lastBarCount = currentCount;
   state.lastBarTime = currentLastTime;
   state.lastFirstTime = currentFirstTime;
+  state.lastFirstClose = firstBarClose;
+  state.lastParamsKey = paramsKey;
 
   if (isIncrementalTick) {
     try {

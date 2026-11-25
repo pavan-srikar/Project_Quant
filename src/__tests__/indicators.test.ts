@@ -1,4 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import { updateSeriesData } from "../pages/trading/bottom-indicators/seriesUpdate.ts";
+import type { SeriesState } from "../pages/trading/bottom-indicators/types.ts";
 import {
   sma,
   ema,
@@ -201,6 +203,84 @@ describe("Technical Indicators", () => {
       expect(result[0]!.value).toBeCloseTo(10);
       // (10 * 100 + 20 * 200) / 300 = 5000 / 300 = 16.6667
       expect(result[1]!.value).toBeCloseTo(16.6667, 3);
+    });
+  });
+
+  describe("Sub-chart updateSeriesData cross-coin & parameter invalidation", () => {
+    const makeMockState = (firstTime: number, firstClose: number, count: number, lastTime: number): SeriesState => ({
+      chart: {} as any,
+      type: "MACD",
+      settingsKey: "MACD",
+      mainSeries: { setData: vi.fn(), update: vi.fn() } as any,
+      allSeries: [],
+      extraSeries: {
+        signal: { setData: vi.fn(), update: vi.fn() } as any,
+        hist: { setData: vi.fn(), update: vi.fn() } as any,
+      },
+      lastBarCount: count,
+      lastBarTime: lastTime,
+      lastFirstTime: firstTime,
+      lastFirstClose: firstClose,
+      lastParamsKey: "MACD_12_26_9",
+    });
+
+    it("calls full setData when switching coins with identical timestamps and bar count", () => {
+      const candlesAda = generateCandles(60, 0.14, 0.001);
+      const candlesBtc = generateCandles(60, 76000, -50);
+      const times = candlesBtc.map((c) => c.time);
+      const state = makeMockState(times[0]!, candlesAda[0]!.close, times.length, times[times.length - 1]!);
+      const btcMacd = macd(candlesBtc, 12, 26, 9);
+
+      updateSeriesData(
+        state,
+        { type: "MACD", fast: 12, slow: 26, signal: 9, data: btcMacd },
+        times,
+        { color: "#2962ff", visible: true },
+        candlesBtc[0]!.close,
+      );
+
+      expect(state.mainSeries.setData).toHaveBeenCalledTimes(1);
+      expect(state.extraSeries!.signal!.setData).toHaveBeenCalledTimes(1);
+      expect(state.extraSeries!.hist!.setData).toHaveBeenCalledTimes(1);
+      expect(state.mainSeries.update).not.toHaveBeenCalled();
+    });
+
+    it("uses incremental update on live tick for the same coin and parameters", () => {
+      const candlesBtc = generateCandles(60, 76000, -50);
+      const times = candlesBtc.map((c) => c.time);
+      const state = makeMockState(times[0]!, candlesBtc[0]!.close, times.length, times[times.length - 1]!);
+      const btcMacd = macd(candlesBtc, 12, 26, 9);
+
+      updateSeriesData(
+        state,
+        { type: "MACD", fast: 12, slow: 26, signal: 9, data: btcMacd },
+        times,
+        { color: "#2962ff", visible: true },
+        candlesBtc[0]!.close,
+      );
+
+      expect(state.mainSeries.update).toHaveBeenCalledTimes(1);
+      expect(state.extraSeries!.signal!.update).toHaveBeenCalledTimes(1);
+      expect(state.extraSeries!.hist!.update).toHaveBeenCalledTimes(1);
+      expect(state.mainSeries.setData).not.toHaveBeenCalled();
+    });
+
+    it("calls full setData when MACD parameters change on the same coin", () => {
+      const candlesBtc = generateCandles(60, 76000, -50);
+      const times = candlesBtc.map((c) => c.time);
+      const state = makeMockState(times[0]!, candlesBtc[0]!.close, times.length, times[times.length - 1]!);
+      const btcMacd = macd(candlesBtc, 5, 13, 4);
+
+      updateSeriesData(
+        state,
+        { type: "MACD", fast: 5, slow: 13, signal: 4, data: btcMacd },
+        times,
+        { color: "#2962ff", visible: true },
+        candlesBtc[0]!.close,
+      );
+
+      expect(state.mainSeries.setData).toHaveBeenCalledTimes(1);
+      expect(state.mainSeries.update).not.toHaveBeenCalled();
     });
   });
 });

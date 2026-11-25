@@ -191,6 +191,8 @@ export interface ChartLifecycleParams {
   isChangingTfRef?: RefObject<boolean>;
   pendingHistoricalTargetRef?: RefObject<{ centerTime: number; barCount: number; targetSymbol: string } | null>;
   lastVisibleTimeRangeRef?: RefObject<{ from: number; to: number; centerTime?: number; barCount?: number } | null>;
+  preservedTimeScaleRef?: RefObject<{ symbol: string; state: any } | null>;
+  initialLoadCompleteRef?: RefObject<boolean>;
   timeframeRef: RefObject<Timeframe>;
   allCandlesRef: RefObject<Candle[]>;
   lastCandleRef: RefObject<CandlestickData<Time> | null>;
@@ -235,4 +237,5 @@ export interface ChartLifecycleParams {
   selectedSymbol: string;
   timeframe: Timeframe;
   hideTimeScale?: boolean;
+  volumeVisible?: boolean;
 }
