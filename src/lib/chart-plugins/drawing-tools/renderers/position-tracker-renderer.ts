@@ -8,7 +8,7 @@ import {
 
 export const POS_GREEN = "#3179f5";
 export const POS_RED = "#ec407a";
-
+const POS_ARROW_COLOR = "#9884e8";
 
 export function renderLivePositionTracker(
   scope: BitmapCoordinatesRenderingScope,
@@ -45,51 +45,50 @@ export function renderLivePositionTracker(
 
   const ctx = scope.context;
   const hpr = scope.horizontalPixelRatio;
-
   const pEntry = toBitmap(scope, xEntry, yEntry);
   const pTrack = toBitmap(scope, xTrack, yCurr);
-  const pEntryHoriz = toBitmap(scope, xTrack, yEntry);
+  const arrowColor = hexToRgba(POS_ARROW_COLOR, 0.85);
 
-  // 1. Subtle shaded triangle between entry horizontal baseline and diagonal trajectory
-  if (Math.abs(xTrack - xEntry) > 1) {
+  // 1. Clean rectangular progress fill bounded to [xEntry, xTrack] x [yEntry, yCurr]
+  const leftX = Math.min(xEntry, xTrack);
+  const rightX = Math.max(xEntry, xTrack);
+  const topY = Math.min(yEntry, yCurr);
+  const botY = Math.max(yEntry, yCurr);
+  if (rightX - leftX >= 1 && botY - topY >= 1) {
+    const a = toBitmap(scope, leftX, topY);
+    const b = toBitmap(scope, rightX, botY);
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(pEntry.x, pEntry.y);
-    ctx.lineTo(pEntryHoriz.x, pEntryHoriz.y);
-    ctx.lineTo(pTrack.x, pTrack.y);
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.lineTo(a.x, b.y);
     ctx.closePath();
-    ctx.fillStyle = hexToRgba(trackColor, 0.15);
+    ctx.fillStyle = hexToRgba(trackColor, 0.2);
     ctx.fill();
     ctx.restore();
   }
 
-  // 2. Dotted diagonal tracking line from when price hit entry to exit / current price
-  strokeLine(scope, pEntry, pTrack, trackColor, 2, [4, 4]);
+  // 2. TradingView-style dashed trajectory line ([4, 4]) from entry hit to exit / current price
+  strokeLine(scope, pEntry, pTrack, arrowColor, 1, [4, 4]);
 
-  // 3. Entry hit marker dot
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(pEntry.x, pEntry.y, 4 * hpr, 0, Math.PI * 2);
-  ctx.fillStyle = "#ffffff";
-  ctx.fill();
-  ctx.lineWidth = 1.5 * hpr;
-  ctx.strokeStyle = trackColor;
-  ctx.stroke();
-  ctx.restore();
-
-  // 4. Exit / current price marker dot
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(pTrack.x, pTrack.y, 6.5 * hpr, 0, Math.PI * 2);
-  ctx.fillStyle = hexToRgba(trackColor, 0.35);
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.arc(pTrack.x, pTrack.y, 3.5 * hpr, 0, Math.PI * 2);
-  ctx.fillStyle = "#ffffff";
-  ctx.fill();
-  ctx.lineWidth = 1.5 * hpr;
-  ctx.strokeStyle = trackColor;
-  ctx.stroke();
-  ctx.restore();
+  // 3. Crisp TradingView-style open-chevron arrowhead at trajectory tip
+  const dx = pTrack.x - pEntry.x;
+  const dy = pTrack.y - pEntry.y;
+  if (Math.hypot(dx, dy) >= 4 * hpr) {
+    const ang = Math.atan2(dy, dx);
+    const headLen = 6 * hpr;
+    const spread = Math.PI / 6;
+    ctx.save();
+    ctx.strokeStyle = arrowColor;
+    ctx.lineWidth = 1 * hpr;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    ctx.moveTo(pTrack.x - headLen * Math.cos(ang - spread), pTrack.y - headLen * Math.sin(ang - spread));
+    ctx.lineTo(pTrack.x, pTrack.y);
+    ctx.lineTo(pTrack.x - headLen * Math.cos(ang + spread), pTrack.y - headLen * Math.sin(ang + spread));
+    ctx.stroke();
+    ctx.restore();
+  }
 }

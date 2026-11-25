@@ -1,7 +1,7 @@
 import type { BitmapCoordinatesRenderingScope } from "fancy-canvas";
 import type { DrawCtxInfo, ResolvedEntry } from "../types";
 import {
-  drawHandle,
+  HANDLE_RADIUS,
   hexToRgba,
   showHandles,
   strokeLine,
@@ -32,8 +32,8 @@ export function renderPosition(
   posZone(scope, xa, xb, y1, yTarget, targetColor);
   posZone(scope, xa, xb, y1, yStop, stopColor);
 
-  // High-contrast Entry Separator Line
-  strokeLine(scope, toBitmap(scope, xa, y1), toBitmap(scope, xb, y1), entryLineColor, 1.5);
+  // Clean Entry Separator Line
+  strokeLine(scope, toBitmap(scope, xa, y1), toBitmap(scope, xb, y1), entryLineColor, 1);
 
   // Interactive Live Position Tracker (Entry → Current Price, always visible once triggered)
   renderLivePositionTracker(scope, e, info, xa, xb, y1);
@@ -69,9 +69,6 @@ export function posZone(
   ctx.save();
   ctx.fillStyle = hexToRgba(color, alpha);
   ctx.fillRect(a.x, a.y, w, h);
-  ctx.strokeStyle = hexToRgba(color, 0.85);
-  ctx.lineWidth = scope.verticalPixelRatio;
-  ctx.strokeRect(a.x, a.y, w, h);
   ctx.restore();
 }
 
@@ -167,42 +164,47 @@ export function drawTvBadge(
   } else if (align === "above") {
     by = Math.round(edgeY * vpr - boxH - offset);
   } else {
-    // "below"
     by = Math.round(edgeY * vpr + offset);
   }
 
-  // Fixed position: If badge is off-screen, do not render (prevents drifting to viewport edges)
   if (by + boxH < 0 || by > scope.bitmapSize.height) {
     ctx.restore();
     return;
   }
 
-  const drawX = bx;
-  const drawY = by;
-
-  // Badge background: Solid color from TradingView reference image
   ctx.fillStyle = accentColor;
   ctx.beginPath();
-  ctx.roundRect(drawX, drawY, boxW, boxH, 4 * hpr);
+  ctx.roundRect(bx, by, boxW, boxH, 4 * hpr);
   ctx.fill();
 
-  // White border for middle badge / selected state
   if (hasWhiteBorder) {
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = 1.5 * vpr;
     ctx.stroke();
-  } else {
-    ctx.strokeStyle = hexToRgba(accentColor, 0.9);
-    ctx.lineWidth = 1 * vpr;
-    ctx.stroke();
   }
 
-  // Text rendering: Crisp dark text from reference image
   ctx.textBaseline = "top";
   lines.forEach((l, i) => {
     ctx.fillStyle = "#131722";
-    ctx.fillText(l, drawX + padX, drawY + padY + i * lineH);
+    ctx.fillText(l, bx + padX, by + padY + i * lineH);
   });
+  ctx.restore();
+}
+
+function drawPosHandle(
+  scope: BitmapCoordinatesRenderingScope,
+  p: { x: number; y: number },
+  borderColor: string,
+): void {
+  const ctx = scope.context;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, HANDLE_RADIUS * scope.horizontalPixelRatio, 0, Math.PI * 2);
+  ctx.fillStyle = "#131722";
+  ctx.fill();
+  ctx.lineWidth = 1.5 * scope.horizontalPixelRatio;
+  ctx.strokeStyle = borderColor;
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -216,13 +218,13 @@ export function renderPositionHandles(
   stopColor: string = POS_RED,
 ): void {
   // Target & Stop handles on the left anchor line
-  if (e.yTarget != null) drawHandle(scope, toBitmap(scope, xa, e.yTarget), targetColor);
-  if (e.yStop != null) drawHandle(scope, toBitmap(scope, xa, e.yStop), stopColor);
+  if (e.yTarget != null) drawPosHandle(scope, toBitmap(scope, xa, e.yTarget), targetColor);
+  if (e.yStop != null) drawPosHandle(scope, toBitmap(scope, xa, e.yStop), stopColor);
 
   // First adjustment middle handle (entry) on left: moves in X and Y
-  drawHandle(scope, toBitmap(scope, xa, y1), "#ffffff");
+  drawPosHandle(scope, toBitmap(scope, xa, y1), targetColor);
 
   // Right width handle on entry line: adjusts duration
-  drawHandle(scope, toBitmap(scope, xb, y1), "#ffffff");
+  drawPosHandle(scope, toBitmap(scope, xb, y1), targetColor);
 }
 

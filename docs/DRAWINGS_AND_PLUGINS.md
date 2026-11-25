@@ -133,7 +133,8 @@ Drawing Persisted ──► Broadcast to onAdd callback ──► Save in useCha
   - `xb, y1`: Right width handle controlling position duration (`time2`).
 - **Badges & Bounds**:
   - Target badge placed outside target zone; Stop badge placed outside stop zone.
-  - Center badge displays risk/reward ratio and real-time/closed PnL. Badges render only when hovered or selected.
+  - Center badge displays risk/reward ratio and real-time/closed PnL. Badges render only when hovered or selected, using solid `#3179f5` / `#ec407a` pills with crisp `#131722` text (and a `1.5px` white border on the center badge).
+  - Risk/reward zones render as borderless flat translucent fills (`0.20` opacity) with a clean `1px` entry separator line, flat rectangular progress fill bounded to `[xEntry, xTrack] × [yEntry, yCurr]`, and a TradingView-style `1px` `[4, 4]` dashed lavender (`#9884e8`) trajectory line ending in a `6px` `30°` open-chevron arrowhead with zero glow halos or endpoint dots.
   - Hit detection is restricted to the inner bounds of the position rectangle (`xa` to `xb`, `top` to `bottom`).
 
 ### E. Rectangle Drawing Defaults & Settings Controls (`factories.ts`, `SettingControls.tsx`, `DrawingSettingsDialog.tsx`, `DrawingFloatingToolbar.tsx`)
